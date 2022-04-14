@@ -1,0 +1,8 @@
+# .style.yapf
+#
+#       http://github.com/google/yapf
+
+[style]
+
+column_limit = 120
+spaces_before_comment = 2

@@ -1,0 +1,19 @@
+{
+    "switches": {
+        "1": {
+            "gateway": "10.0.0.1",
+            "edges": [
+                {
+                    "ip": "10.0.2.100",
+                    "serviceCidr": [
+                        "10.2.100.0/24"
+                    ]
+                }
+            ]
+        }
+    },
+    "arpSrcMac": "02:00:00:00:00:03",
+    "flowIdleTimeout": 2,
+    "servicesFolder": "/var/emu",
+    "servicesFileExt": "-services.json"
+}
