@@ -19,12 +19,15 @@ class ServiceManager:
 
     # REVIEW Might have to be synchronized due to parallel access.
 
-    def __init__(self, context: Context, log, svcFolder, fileExt):
+    def __init__(self, context: Context, log, svcFolder, fileExt, useGlobalServiceMap: bool = False):
 
         self.ctx = context
         self.log = log
+        self._useGlobalServiceMap = useGlobalServiceMap
 
-        self._services: TinyServiceTrie = TinyServiceTrie(keysOnly=True)  # SocketAddr
+        self.log.debug("useGlobalServiceMap=" + str(useGlobalServiceMap))
+
+        self._services: TinyServiceTrie = TinyServiceTrie(keysOnly=not useGlobalServiceMap)  # SocketAddr
 
         if svcFolder != None:
             self.loadServices(svcFolder, fileExt)
@@ -68,14 +71,18 @@ class ServiceManager:
             if svcInstance is not None:
                 svc = svcInstance.service
 
-                # Add Service to global ServiceTrie
+                # Add service to global ServiceTrie
                 #
                 if not self._services.contains(svc.vAddr):
                     self._services.set(svc.vAddr)
                     self.log.info("ServiceID {}:{} {} -> {}".format(
                         svc.vAddr.ip, svc.vAddr.port, '(' + svc.domain + ')' if svc.domain else '', svc.name))
-                # else:
-                #     assert service.domain == svc.domain and service.name == svc.name  # same service in all edges
+
+                # ... or get the existing one
+                elif self._useGlobalServiceMap:
+                    service = self._services[svc.vAddr]
+                    assert service.domain == svc.domain and service.name == svc.name  # same service in all edges
+                    svcInstance.service = service  # single instance to save memory
 
                 # Add ServiceInstance to edge (register with IP addresses for both directions if different)
                 #

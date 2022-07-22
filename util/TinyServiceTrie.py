@@ -9,7 +9,7 @@ class TinyServiceTrie(object):
         self._trie = TinyTricia(numBits, keysOnly=keysOnly)
 
     def set(self, addr: SocketAddr, svc: Service = None):
-        self._trie.set(addr.ip.ip << 16 | addr.port, svc.domain + ":" + svc.name if svc else None)
+        self._trie.set(addr.ip.ip << 16 | addr.port, svc)
 
     def get(self, addr: SocketAddr) -> Service:
         key, value = self._trie.get(addr.ip.ip << 16 | addr.port)
@@ -19,9 +19,7 @@ class TinyServiceTrie(object):
 
         if value is None:
             return Service(addr)
-
-        domain, name = value.split(':', 1)
-        return Service(addr, domain, name)
+        return value
 
     def contains(self, addr: SocketAddr) -> bool:
         return self._trie.contains(addr.ip.ip << 16 | addr.port)

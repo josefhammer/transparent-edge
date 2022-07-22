@@ -39,6 +39,7 @@ class EdgeController:
         self.servicesFolder = None
         self.servicesFileExt = None
         self.switchConfig = None
+        self._useGlobalServiceMap = False
         self.loadConfig(os_getenv('EDGE_CONFIG'))
 
         logLevel = os_getenv('EDGE_LOGLEVEL')
@@ -46,8 +47,12 @@ class EdgeController:
             self.log.setLevel(logLevel)
             self.log.warn("Loglevel set to " + logLevel)
 
-        self.ctx.serviceMngr = ServiceManager(self.ctx, self.logger("ServiceMngr"), self.servicesFolder,
-                                              self.servicesFileExt)
+        self.ctx.serviceMngr = ServiceManager(
+            self.ctx,
+            self.logger("ServiceMngr"),
+            self.servicesFolder,
+            self.servicesFileExt,
+            useGlobalServiceMap=self._useGlobalServiceMap)
 
         self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self.useEdgePort,
                                          self.flowIdleTimeout * 2)
@@ -160,6 +165,8 @@ class EdgeController:
 
     def loadConfig(self, filename):
 
+        self.log.info("Loading config file: " + filename)
+
         with open(filename) as file:
 
             cfg = json_load(file)
@@ -173,6 +180,7 @@ class EdgeController:
             self.switchConfig = cfg['switches']
 
             self.useEdgePort = cfg.get('useEdgePort', False)
+            self._useGlobalServiceMap = cfg.get('useGlobalServiceMap', False)
 
             for dpid, switch in cfg['switches'].items():
 

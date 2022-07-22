@@ -15,5 +15,6 @@
     "arpSrcMac": "02:00:00:00:00:03",
     "flowIdleTimeout": 2,
     "servicesFolder": "/var/emu",
-    "servicesFileExt": "-services.json"
+    "servicesFileExt": "-services.json",
+    "useGlobalServiceMap": true
 }
