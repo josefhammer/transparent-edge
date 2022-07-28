@@ -17,6 +17,7 @@ class EdgeDetector:
                  tableID,
                  userTableID,
                  defaultTableID,
+                 useUniqueMask,
                  flowIdleTimeout=10):
 
         self.ctx = context
@@ -25,6 +26,7 @@ class EdgeDetector:
         self.table = tableID
         self.userTable = userTableID
         self.defaultTable = defaultTableID
+        self.useUniqueMask = useUniqueMask
         self.idleTimeout = flowIdleTimeout
 
         self.aPrivateIP = self.ctx.edges[next(iter(self.ctx.edges))].ip  # any private IP to calculate the netmask
@@ -149,23 +151,51 @@ class EdgeDetector:
         # NOTE: Only traffic from private to public IPs can arrive here.
         #       Any potential traffic from edge servers has already been redirected, so the srcIP does not matter.
 
-        # Calculate the uniquePrefix to match as much default traffic as possible with a single OpenFlow rule.
+        # UniquePrefix vs UniqueMask
+        #
+        # Calculate the UniquePrefix to match as much default traffic as possible with a single OpenFlow rule.
         # The uniquePrefix is the number of bits that are required for the current destination IP to _not_ match
         # _any_ available ServiceIP.
         #
         # E.g.: We do not want to match 194.232.104.150/32 but a much more inclusive 192.0.0.0/2 in case the first
         # two bits are different for _every_ available ServiceIP.
         #
-        uniquePrefix, parentPrefix = self.ctx.serviceMngr.uniquePrefix(dst.ip)
-        match = of.Match().dstIP(dst.ip, IPAddr.cidrToIPMask("{}/{}".format(dst.ip, min(32, uniquePrefix))))
-
-        if uniquePrefix < 32 and self.isDebugLogLevel:
-            self.log.debug("Extended match for {}/{}".format(dst.ip, uniquePrefix))
+        # The UniqueMask goes a step further. OpenFlow does not only allow to set a prefix, but a more precise bitmask.
+        # Thus, we can take the parent prefixes into account as well. We just need to match all parent prefixes in
+        # addition to the UniquePrefix; all the other bits in between do not matter. This way, we can match even more
+        # possible public IPs with a single flow.
+        #
+        # Example:
+        #
+        # 194.232.104.150                                            = 11000010.11101000.01101000.10010110
+        # 194.232.104.150, uniquePrefix=24:                     mask = 11111111.11111111.11111111.00000000
+        # 194.232.104.150, uniquePrefix=24, prefixes=[8]:       mask = 00000001.00000000.00000001.00000000
+        #
+        uniquePrefix, prefixes = self.ctx.serviceMngr.uniquePrefix(dst.ip)
 
         # if not a ServiceIP then the port does not matter (to reduce the number of OpenFlow rules)
         #
-        elif uniquePrefix > 32:  # == 32 would mean that the IP is unique and thus _not_ a ServiceIP
+        if uniquePrefix > 32:  # == 32 would mean that the IP is unique and thus _not_ a ServiceIP
             match.dstPort(dst.port)
+
+        uniquePrefix = min(32, uniquePrefix)
+
+        if not self.useUniqueMask:  # use uniquePrefix only: all bits up to (incl.) uniquePrefix are set
+            mask = (1 << uniquePrefix) - 1  # set num(uniquePrefix) bits to 1
+            mask <<= (32 - uniquePrefix)  # and move them to the far left
+
+        else:  # set the mask to the prefix bits only
+
+            prefixes.append(uniquePrefix)
+            for prefix in prefixes:
+                mask = 1 << (32 - prefix)  # add bit at position(prefix)
+
+        ipMask = str(IPAddr(mask))
+        match = of.Match().dstIP(dst.ip, ipMask)
+
+        if self.isDebugLogLevel and (uniquePrefix < 32 or self.useUniqueMask):
+            self.log.debug("Extended match for {}/{} (mask={}, prefixes={})".format(
+                dst.ip, ipMask if self.useUniqueMask else uniquePrefix, mask, prefixes))
         return match
 
     def redirectEdge(self, of: OpenFlow, match):

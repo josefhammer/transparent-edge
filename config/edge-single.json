@@ -16,5 +16,6 @@
     "flowIdleTimeout": 5,
     "servicesFolder": "/var/emu",
     "servicesFileExt": "-services.json",
+    "useUniqueMask": true,
     "useGlobalServiceMap": true
 }

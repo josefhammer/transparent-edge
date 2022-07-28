@@ -40,6 +40,7 @@ class EdgeController:
         self.servicesFileExt = None
         self.switchConfig = None
         self._useGlobalServiceMap = False
+        self._useUniqueMask = True
         self._logPerformance = False
         self.loadConfig(os_getenv('EDGE_CONFIG'))
 
@@ -94,6 +95,7 @@ class EdgeController:
                     tableID=edgeRedirTable,
                     userTableID=userRedirTable,
                     defaultTableID=defaultTable,
+                    useUniqueMask=self._useUniqueMask,
                     flowIdleTimeout=self.flowIdleTimeout))
             fwds.append(
                 EdgeRedirector(
@@ -182,6 +184,7 @@ class EdgeController:
 
             self.useEdgePort = cfg.get('useEdgePort', False)
             self._useGlobalServiceMap = cfg.get('useGlobalServiceMap', False)
+            self._useUniqueMask = cfg.get('useUniqueMask', True)
             self._logPerformance = cfg.get('logPerformance', False)
 
             for dpid, switch in cfg['switches'].items():
