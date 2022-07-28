@@ -156,7 +156,7 @@ class EdgeDetector:
         # E.g.: We do not want to match 194.232.104.150/32 but a much more inclusive 192.0.0.0/2 in case the first
         # two bits are different for _every_ available ServiceIP.
         #
-        uniquePrefix = self.ctx.serviceMngr.uniquePrefix(dst.ip)
+        uniquePrefix, parentPrefix = self.ctx.serviceMngr.uniquePrefix(dst.ip)
         match = of.Match().dstIP(dst.ip, IPAddr.cidrToIPMask("{}/{}".format(dst.ip, min(32, uniquePrefix))))
 
         if uniquePrefix < 32 and self.isDebugLogLevel:

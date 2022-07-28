@@ -1,3 +1,4 @@
+from __future__ import annotations
 from util.SocketAddr import SocketAddr
 from util.IPAddr import IPAddr
 from util.Service import Service
@@ -25,10 +26,18 @@ class TinyServiceTrie(object):
         return self._trie.contains(addr.ip.ip << 16 | addr.port)
 
     def containsIP(self, ip: IPAddr) -> bool:
-        return self._trie.containsFirstNBits(ip.ip << 16) >= 32
+        return self._trie.containsFirstNBits(ip.ip << 16)[0] >= 32
 
-    def uniquePrefix(self, ip: IPAddr):  # uniquePrefix for IP (not including the port)
-        return self._trie.containsFirstNBits(ip.ip << 16) + 1  # +1: the next bit must match too
+    def uniquePrefix(self, ip: IPAddr) -> tuple[int, list[int]]:
+        """
+        Returns (uniquePrefix, prefixes); (0,[]) if tree is empty.
+        
+        `uniquePrefix`: uniquePrefix for the IP (not including the port).
+        `prefixes`: The parent prefixes at which the closest key is attached.
+        """
+        firstN, prefixes = self._trie.containsFirstNBits(ip.ip << 16)
+
+        return firstN + 1, [prefix - 16 for prefix in prefixes]  # +1: the next bit must match too
 
     def __setitem__(self, key: SocketAddr, item):
         self.set(key, item)
@@ -41,3 +50,9 @@ class TinyServiceTrie(object):
 
     def __iter__(self):
         return self._trie.__iter__()
+
+    def __str__(self):
+        return "[\n" + '\n'.join([
+            "{} {} {} {}".format(nodeID, (self._trie.MAX_PREFIX - prefix) * ' ', prefix, value)
+            for nodeID, prefix, value in self._trie
+        ]) + "\n]"
