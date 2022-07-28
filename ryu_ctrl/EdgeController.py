@@ -40,6 +40,7 @@ class EdgeController:
         self.servicesFileExt = None
         self.switchConfig = None
         self._useGlobalServiceMap = False
+        self._logPerformance = False
         self.loadConfig(os_getenv('EDGE_CONFIG'))
 
         logLevel = os_getenv('EDGE_LOGLEVEL')
@@ -153,7 +154,7 @@ class EdgeController:
             fwd.packetIn(of)
             perf.lap()
 
-        if of.msg.table_id == 1 or of.msg.table_id == 2:
+        if self._logPerformance and (of.msg.table_id == 1 or of.msg.table_id == 2):
             self.log.warn("packetIn: {}ms".format(perf.laps()))
 
     def logger(self, name, dpid=None):
@@ -181,6 +182,7 @@ class EdgeController:
 
             self.useEdgePort = cfg.get('useEdgePort', False)
             self._useGlobalServiceMap = cfg.get('useGlobalServiceMap', False)
+            self._logPerformance = cfg.get('logPerformance', False)
 
             for dpid, switch in cfg['switches'].items():
 
