@@ -89,7 +89,7 @@ class EdgeController:
             fwds.append(
                 EdgeDetector(
                     self.ctx,
-                    self.logger("Redir", dpid),
+                    self.logger("Detect", dpid),
                     preSelectTableID=preSelectTable,
                     tableID=edgeRedirTable,
                     userTableID=userRedirTable,
@@ -98,7 +98,7 @@ class EdgeController:
             fwds.append(
                 EdgeRedirector(
                     self.ctx,
-                    self.logger("User", dpid),
+                    self.logger("Redir", dpid),
                     self.dispatcher,
                     tableID=userRedirTable,
                     defaultTableID=defaultTable,
