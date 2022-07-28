@@ -31,8 +31,8 @@ class EdgeDetector:
         assert (self.aPrivateIP is not None)
         assert (self.aPrivateIP.isPrivateIP())
 
-        self.isDebugLogLevel = log.level >= DEBUG
-        self.isInfoLogLevel = log.level >= INFO
+        self.isDebugLogLevel = log.isEnabledFor(DEBUG)
+        self.isInfoLogLevel = log.isEnabledFor(INFO)
 
     def connect(self, of: OpenFlow):
 
