@@ -65,7 +65,11 @@ class ClusterK8s:
     def getServices(self):
 
         services = []
-        ret = self._k8s.list_service_for_all_namespaces(watch=False)
+        try:
+            ret = self._k8s.list_service_for_all_namespaces(watch=False)
+        except Exception as e:
+            print(e)
+            return services
 
         for item in ret.items:
             if "edge" == item.metadata.namespace:
