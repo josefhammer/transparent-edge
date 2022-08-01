@@ -138,6 +138,7 @@ class Edge(object):
         self.ip = IPAddr(ip)
         self.dpid = DPID(dpid)
         self.serviceCidr = serviceCidr
+        self.cluster = None
 
         self.vServices = {}  # SocketAddr -> ServiceInstance
         self.eServices = {}  # SocketAddr -> ServiceInstance

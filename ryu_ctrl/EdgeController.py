@@ -143,6 +143,13 @@ class EdgeController:
 
         for fwd in self.forwarders[of.dpid]:
             fwd.connected(of)
+
+        # get data about all services from the attached cluster
+        #
+        edge = self.ctx.edges.get(of.dpid)
+        if edge and edge.cluster:
+            self.ctx.serviceMngr.initServices(edge, edge.cluster.getServices())
+
         self.log.info("")
         self.log.info("")
         self.log.info("**** {} fully connected. ****".format(of.dpid))

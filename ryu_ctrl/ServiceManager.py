@@ -59,20 +59,17 @@ class ServiceManager:
                     switch = dpid
                     break
 
-            edge = self.ctx.edges.get(switch)
-            if edge is not None:  # included in the current configuration?
+            if switch is not None:  # included in the current configuration?
 
                 # NOTE: designed to allow different types of edge clusters, not only K8s
                 #
-                cluster = None
                 if clusterType == "k8s":
-                    cluster = ClusterK8s(apiServer, filename)
+                    edge.cluster = ClusterK8s(apiServer, filename)
 
-                if cluster is not None:
-                    self.initServices(switch, edge, cluster.getServices())
-
-    def initServices(self, switch: DPID, edge: Edge, svcInstances: list):
-
+    def initServices(self, edge: Edge, svcInstances: list):
+        """
+        Will be called after the switch connected. Before that, we may not be able to connect to the cluster.
+        """
         for svcInstance in svcInstances:
 
             svc = svcInstance.service
@@ -96,4 +93,4 @@ class ServiceManager:
             edge.eServices[svcInstance.eAddr] = svcInstance
             edge.nServices[svcInstance.nAddr] = svcInstance
 
-            self.log.info("ServiceInstance @ {}: {}".format(switch, svcInstance))
+            self.log.info("ServiceInstance @ {}: {}".format(edge.dpid, svcInstance))
