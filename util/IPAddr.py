@@ -7,6 +7,7 @@ IPAddr class.
 # ipaddress lib: https://docs.python.org/3/library/ipaddress.html
 
 from ipaddress import ip_address, IPv4Address, IPv4Network
+import socket
 
 
 class IPAddr(object):
@@ -41,6 +42,22 @@ class IPAddr(object):
     def cidrToIPMask(cidr):
 
         return IPv4Network(cidr, False).netmask
+
+    @staticmethod
+    def get_ipv4_by_hostname(hostname) -> list:
+        #
+        # Source: https://stackoverflow.com/questions/2805231/how-can-i-do-dns-lookups-in-python-including-referring-to-etc-hosts
+        #
+        return list(i  # raw socket structure
+                    [4]  # internet protocol info
+                    [0]  # address
+                    for i in socket.getaddrinfo(
+                        hostname,
+                        0  # port, required
+                    ) if i[0] is socket.AddressFamily.AF_INET  # ipv4
+
+                    # ignore duplicate addresses with other socket types
+                    and i[1] is socket.SocketKind.SOCK_RAW)
 
     def __eq__(self, other):
         if (isinstance(other, IPAddr)):
