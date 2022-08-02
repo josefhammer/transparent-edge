@@ -19,7 +19,7 @@ class TinyServiceTrie(object):
             return None
 
         if value is None:
-            return Service(addr)
+            return Service(addr, domain=None, name=None)
         return value
 
     def contains(self, addr: SocketAddr) -> bool:
