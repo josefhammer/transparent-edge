@@ -77,7 +77,7 @@ class ServiceManager:
             # Add service to global ServiceTrie
             #
             if not self._services.contains(svc.vAddr):
-                self._services.set(svc.vAddr)
+                self._services.set(svc.vAddr, svc)
                 self.log.info("ServiceID {}:{} {} -> {}".format(svc.vAddr.ip, svc.vAddr.port,
                                                                 '(' + svc.domain + ')' if svc.domain else '', svc.name))
 
