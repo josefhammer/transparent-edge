@@ -61,7 +61,7 @@ class K8sCluster:
         return [
             Deployment(
                 i.metadata.labels.get(self._labelName), self._noneToZero(i.status.available_replicas),
-                self._noneToZero(i.status.ready_replicas), i.to_dict()) for i in items
+                self._noneToZero(i.status.ready_replicas)) for i in items
         ]
 
     def pods(self, label=None):

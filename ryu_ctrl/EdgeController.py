@@ -149,8 +149,7 @@ class EdgeController:
         #
         edge = self.ctx.edges.get(of.dpid)
         if edge and edge.cluster:
-            self.ctx.serviceMngr.initServices(edge, edge.cluster.services(None, self._target),
-                                              edge.cluster.deployments())
+            self.ctx.serviceMngr.initServices(edge)
 
         self.log.info("")
         self.log.info("")

@@ -69,12 +69,11 @@ class Deployment(object):
     Contains all the data about a single edge service deployment.
     """
 
-    def __init__(self, label, available_replicas=0, ready_replicas=0, yml=None):
+    def __init__(self, label, available_replicas=0, ready_replicas=0):
 
         self.label = label
         self.available_replicas = available_replicas
         self.ready_replicas = ready_replicas
-        self.yml = yml  # FIXME
 
     def __eq__(self, other):
         if (isinstance(other, Deployment)):

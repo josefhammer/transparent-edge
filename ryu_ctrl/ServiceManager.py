@@ -5,7 +5,7 @@ from .Context import Context
 from util.K8sCluster import K8sCluster
 from util.EdgeTools import Edge
 from util.SocketAddr import SocketAddr
-from util.Service import ServiceInstance, Service
+from util.Service import Deployment, ServiceInstance, Service
 from util.RyuDPID import DPID
 from util.IPAddr import IPAddr
 from util.TinyServiceTrie import TinyServiceTrie
@@ -100,13 +100,22 @@ class ServiceManager:
         #
         return os.path.join("/var/emu/services/", label + ".yml")
 
-    def initServices(self, edge: Edge, svcInstances: list, deployments: list):
+    def initServices(self, edge: Edge):
         """
         Will be called after the switch connected. Before that, we may not be able to connect to the cluster.
         """
+        svcInstances = edge.cluster.services(None, self._target)
+        deployments = edge.cluster.deployments()
+
+        depMap = {}
+        for dep in deployments:
+            depMap[dep.label] = dep
+
         for svcInstance in svcInstances:
 
+            label = svcInstance.service.label
             svcInstance.service = self._addService(svcInstance.service)
+            svcInstance.deployment = depMap.get(label, Deployment(label))
             self._addServiceInstance(svcInstance, edge)
 
     def _addService(self, svc: Service):
@@ -127,6 +136,17 @@ class ServiceManager:
             return service  # single instance to save memory
 
     def _addServiceInstance(self, svcInstance, edge):
+
+        # If we route directly to the pod, we need to replace ClusterIP with PodIP
+        #
+        if self._target == "pod":
+            #
+            # REVIEW Inefficient to ask twice or for every pod
+            #
+            pods = edge.cluster.pods(svcInstance.service.label)
+            assert (len(pods))
+
+            svcInstance.eAddr.ip = IPAddr(pods[0]["status"]["pod_ip"])
 
         # Add ServiceInstance to edge (register with IP addresses for both directions if different)
         #
@@ -172,14 +192,6 @@ class ServiceManager:
                 if len(deps) and deps[0].ready_replicas:
 
                     svcInst.deployment = deps[0]
-
-                    # REVIEW Route directly to Pod to avoid iptables setup delay
-                    #
-                    if self._target == "pod":
-                        #
-                        # replace ClusterIP with PodIP (was not known before)
-                        #
-                        svcInst.eAddr.ip = IPAddr(pods[0]["status"]["pod_ip"])
                     break
                 time.sleep(0.1)
 
