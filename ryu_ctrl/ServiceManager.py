@@ -24,11 +24,18 @@ class ServiceManager:
 
     # REVIEW Might have to be synchronized due to parallel access.
 
-    def __init__(self, context: Context, log, clusterGlob: str, servicesGlob: str, useGlobalServiceMap: bool = False):
+    def __init__(self,
+                 context: Context,
+                 log,
+                 clusterGlob: str,
+                 servicesGlob: str,
+                 useGlobalServiceMap: bool = False,
+                 useEdgePort: bool = False):
 
         self.ctx = context
         self.log = log
         self._useGlobalServiceMap = useGlobalServiceMap
+        self._useEdgePort = useEdgePort
 
         self.log.debug("useGlobalServiceMap=" + str(useGlobalServiceMap))
 
@@ -47,7 +54,7 @@ class ServiceManager:
         return self._services.uniquePrefix(ip)
 
     def isServer(self, dpid, addr: SocketAddr):
-        return dpid in self.ctx.edges and addr in self.ctx.edges[dpid].nServices
+        return dpid in self.ctx.edges and addr in self.ctx.edges[dpid].eServices
 
     def loadClusters(self, clusterGlob):
 
@@ -78,7 +85,7 @@ class ServiceManager:
 
         for filename in files:
             service = K8sService(self._labelFromServiceFilename(filename), filename)
-            svc = service.toService(edgeIP=None)
+            svc = service.toService(edgeIP=None, useEdgePort=self._useEdgePort)
 
             self._addService(svc)
 
@@ -125,7 +132,6 @@ class ServiceManager:
         #
         edge.vServices[svcInstance.service.vAddr] = svcInstance  # REVIEW Requires to have a single instance only
         edge.eServices[svcInstance.eAddr] = svcInstance
-        edge.nServices[svcInstance.nAddr] = svcInstance
 
         self.log.info("ServiceInstance @ {}: {}".format(edge.dpid, svcInstance))
 
@@ -134,16 +140,16 @@ class ServiceManager:
         service = self._services.get(vAddr)
         assert (service)
 
+        perf = PerfCounter()
         print("Deploy Service Label=", service.label)
 
         svc = K8sService(service.label, self._filenameFromServiceLabel(service.label))
         svc.annotate()
 
-        perf = PerfCounter()
         edge.cluster.applyYaml(yml=svc.yaml)
         self.log.info("Service " + str(svc) + " deployed.")
 
-        svcInsts = edge.cluster.services(service.label)
+        svcInsts = edge.cluster.services(service.label, self._useEdgePort)
 
         if svcInsts:
             svcInst = svcInsts[0]
@@ -152,7 +158,7 @@ class ServiceManager:
 
             # TODO Replace with 'watch'
             #
-            # Unfortunately, filtering by label is not perfectly reliable. Should use pod-template-hash instead:
+            # Unfortunately, filtering pods by label is not perfectly reliable. Should use pod-template-hash instead:
             # (https://stackoverflow.com/questions/52957227/kubectl-command-to-list-pods-of-a-deployment-in-kubernetes)
             #
             while (True):
@@ -167,16 +173,15 @@ class ServiceManager:
                 # if len(pods) and pods[0]["status"]["phase"] == "Running":  # not reliable
                 if len(deps) and deps[0].ready_replicas:
 
-                    ms = perf.ms()
-                    print("Pod running:", pods[0]["status"]["pod_ip"], "time=", ms, "ms")
-
                     # REVIEW Route directly to Pod to avoid iptables setup delay
                     # replace ClusterIP with PodIP
-                    svcInst.nAddr = SocketAddr(IPAddr(pods[0]["status"]["pod_ip"]), svcInst.nAddr.port)
+                    svcInst.eAddr = SocketAddr(IPAddr(pods[0]["status"]["pod_ip"]), svcInst.service.vAddr.port)
+                    # FIXME using the vPort is a quick fix, but podPort must be used
 
                     break
                 time.sleep(0.1)
 
+            print("Pod running:", pods[0]["status"]["pod_ip"], "time=", perf.ms(), "ms")
             print("svcInst:", svcInst)
             self._addServiceInstance(svcInst, edge)
 

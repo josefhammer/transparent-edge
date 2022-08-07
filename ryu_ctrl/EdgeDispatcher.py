@@ -11,11 +11,10 @@ class EdgeDispatcher:
 
     # REVIEW Might have to be synchronized due to parallel access.
 
-    def __init__(self, context: Context, log, useEdgePort: bool, memIdleTimeout=10):
+    def __init__(self, context: Context, log, memIdleTimeout=10):
 
         self.ctx = context
         self.log = log
-        self.useEdgePort = useEdgePort
 
         # Remember the locations of the clients to detect client movement
         self.locations = {}
@@ -54,10 +53,7 @@ class EdgeDispatcher:
             else:
                 (svc, switch) = services[0]
 
-            if self.useEdgePort and svc.eAddr.port:
-                edge = SocketAddr(svc.eAddr.ip, svc.eAddr.port, self.ctx.hosts[switch][svc.eAddr.ip].mac)
-            else:
-                edge = SocketAddr(svc.nAddr.ip, svc.nAddr.port, self.ctx.hosts[switch][svc.eAddr.ip].mac)
+            edge = SocketAddr(svc.eAddr.ip, svc.eAddr.port, self.ctx.hosts[switch][svc.edgeIP].mac)
 
             entry = MemoryEntry(src, dst, edge)
             self.memory.add(entry)

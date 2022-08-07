@@ -4,6 +4,7 @@
 Classes regarding edge services.
 """
 
+from util.IPAddr import IPAddr
 from util.SocketAddr import SocketAddr
 
 
@@ -43,24 +44,24 @@ class ServiceInstance(object):
     Contains all the data for a single edge service instance.
     """
 
-    def __init__(self, service: Service, eAddr: SocketAddr, nAddr: SocketAddr):
+    def __init__(self, service: Service, edgeIP: IPAddr, eAddr: SocketAddr):
 
         self.service = service
-        self.eAddr = eAddr  # edge address (= ingress)
-        self.nAddr = nAddr  # node address (= actual edge node)
+        self.edgeIP = edgeIP
+        self.eAddr = eAddr  # edge service address (depends on config flags)
         self.deployment = Deployment(service.name)
 
     def __eq__(self, other):
         if (isinstance(other, ServiceInstance)):
-            return self.service == other.service and self.eAddr == other.eAddr and self.nAddr == other.nAddr
+            return self.service == other.service and self.edgeIP == other.edgeIP and self.eAddr == other.eAddr
         return False
 
     def __ne__(self, other):
         return not self == other
 
     def __repr__(self):
-        return "{} @ {} ({}) [{}/{} ready]".format(self.service, self.eAddr, self.nAddr, self.deployment.ready_replicas,
-                                                   self.deployment.available_replicas)
+        return "{} @ {} ({}) [{}/{} ready]".format(self.service, self.edgeIP, self.eAddr,
+                                                   self.deployment.ready_replicas, self.deployment.available_replicas)
 
 
 class Deployment(object):

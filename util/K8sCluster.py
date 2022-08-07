@@ -38,7 +38,7 @@ class K8sCluster:
         self._k8s = client.CoreV1Api(self._apiClient)
         self._k8sApps = client.AppsV1Api(self._apiClient)
 
-    def services(self, label=None):
+    def services(self, label=None, _useEdgePort: bool = False):
 
         result = []
         services = self._getItems(label, self._k8s.list_namespaced_service)
@@ -46,7 +46,7 @@ class K8sCluster:
         for item in services:
             item.kind = "Service"  # unfortunately, it's returned as None
 
-            svcInstance = K8sService(label=None, yml=[item.to_dict()]).toService(self._ip)
+            svcInstance = K8sService(label=None, yml=[item.to_dict()]).toService(self._ip, _useEdgePort)
 
             if isinstance(svcInstance, ServiceInstance):
                 result.append(svcInstance)

@@ -55,10 +55,10 @@ class EdgeController:
             self.logger("ServiceMngr"),
             clusterGlob=self._clusterGlob,
             servicesGlob=self._servicesGlob,
-            useGlobalServiceMap=self._useGlobalServiceMap)
+            useGlobalServiceMap=self._useGlobalServiceMap,
+            useEdgePort=self._useEdgePort)
 
-        self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self._useEdgePort,
-                                         self.flowIdleTimeout * 2)
+        self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self.flowIdleTimeout * 2)
 
         for dpid, edge in self.ctx.edges.items():
             self.log.info("Switch {} -> {} {}".format(dpid, edge.ip, edge.serviceCidr))
@@ -149,7 +149,8 @@ class EdgeController:
         #
         edge = self.ctx.edges.get(of.dpid)
         if edge and edge.cluster:
-            self.ctx.serviceMngr.initServices(edge, edge.cluster.services(), edge.cluster.deployments())
+            self.ctx.serviceMngr.initServices(edge, edge.cluster.services(None, self._useEdgePort),
+                                              edge.cluster.deployments())
 
         self.log.info("")
         self.log.info("")

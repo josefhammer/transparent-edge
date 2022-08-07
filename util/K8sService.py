@@ -49,7 +49,7 @@ class K8sService(object):
     def _addLabel(self, item):
         item.setdefault("metadata", {}).setdefault("labels", {})[K8sService.LABEL_NAME] = self.label
 
-    def toService(self, edgeIP: IPAddr):  # -> returns Service or ServiceInstance
+    def toService(self, edgeIP: IPAddr, useEdgePort: bool):  # -> returns Service or ServiceInstance
         #
         # REVIEW Move somewhere else? Refactor?
         #
@@ -73,12 +73,14 @@ class K8sService(object):
             if ePort == None:
                 ePort = 0
 
-        # REVIEW Have only eAddr or nAddr in the future? (depending on config flag?)
-        #
-        eAddr = SocketAddr(edgeIP, ePort)
-        nAddr = SocketAddr(self.clusterIP, self.port)  # nodeAddr
+        if useEdgePort:
+            eAddr = SocketAddr(edgeIP, ePort)
+        else:
+            eAddr = SocketAddr(self.clusterIP, self.port)  # nodeAddr
 
-        return ServiceInstance(service, eAddr, nAddr)
+        # FIXME podPort needs to be considered too
+
+        return ServiceInstance(service, edgeIP, eAddr)
 
     def _parseYaml(self, yml):
         """

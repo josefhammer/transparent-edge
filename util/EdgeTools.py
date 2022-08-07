@@ -142,7 +142,6 @@ class Edge(object):
 
         self.vServices = {}  # SocketAddr -> ServiceInstance
         self.eServices = {}  # SocketAddr -> ServiceInstance
-        self.nServices = {}  # SocketAddr -> ServiceInstance
 
     def __eq__(self, other):
         if (isinstance(other, Edge)):
