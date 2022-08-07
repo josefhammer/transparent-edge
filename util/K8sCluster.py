@@ -41,7 +41,7 @@ class K8sCluster:
     def services(self, label=None):
 
         result = []
-        services = self._getItems(label, self._k8s.list_service_for_all_namespaces)
+        services = self._getItems(label, self._k8s.list_namespaced_service)
 
         for item in services:
             item.kind = "Service"  # unfortunately, it's returned as None
@@ -56,7 +56,7 @@ class K8sCluster:
 
     def deployments(self, label=None):
 
-        items = self._getItems(label, self._k8sApps.list_deployment_for_all_namespaces)
+        items = self._getItems(label, self._k8sApps.list_namespaced_deployment)
 
         return [
             Deployment(
@@ -66,7 +66,13 @@ class K8sCluster:
 
     def pods(self, label=None):
 
-        items = self._getItems(label, self._k8s.list_pod_for_all_namespaces)
+        items = self._getItems(label, self._k8s.list_namespaced_pod)
+
+        return [i.to_dict() for i in items]
+
+    def endpoints(self, label=None):
+
+        items = self._getItems(label, self._k8s.list_namespaced_endpoints)
 
         return [i.to_dict() for i in items]
 
@@ -132,8 +138,9 @@ class K8sCluster:
     def _getItems(self, label, func):
 
         try:
-            ret = func(label_selector=self._labelSelector(label))
-            return self._filterNamespace(self._filterLabelAvailable(ret.items))
+            ret = func(self._namespace, label_selector=self._labelSelector(label))
+            # return self._filterNamespace(self._filterLabelAvailable(ret.items))
+            return self._filterLabelAvailable(ret.items)
 
         except ApiException as e:
             self._log.warn(e)
