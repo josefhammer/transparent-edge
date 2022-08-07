@@ -40,7 +40,7 @@ class EdgeController:
         self._servicesGlob = "/var/emu/services/*.yml"  # default value
         self._switchConfig = None
         self._useGlobalServiceMap = False
-        self._useEdgePort = False
+        self._target = "pod"
         self._useUniqueMask = True
         self._logPerformance = False
         self.loadConfig(os_getenv('EDGE_CONFIG'))
@@ -56,7 +56,7 @@ class EdgeController:
             clusterGlob=self._clusterGlob,
             servicesGlob=self._servicesGlob,
             useGlobalServiceMap=self._useGlobalServiceMap,
-            useEdgePort=self._useEdgePort)
+            target=self._target)
 
         self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self.flowIdleTimeout * 2)
 
@@ -149,7 +149,7 @@ class EdgeController:
         #
         edge = self.ctx.edges.get(of.dpid)
         if edge and edge.cluster:
-            self.ctx.serviceMngr.initServices(edge, edge.cluster.services(None, self._useEdgePort),
+            self.ctx.serviceMngr.initServices(edge, edge.cluster.services(None, self._target),
                                               edge.cluster.deployments())
 
         self.log.info("")
@@ -191,7 +191,7 @@ class EdgeController:
 
             self._clusterGlob = cfg.get('clusterGlob', self._clusterGlob)
             self._servicesGlob = cfg.get('servicesGlob', self._servicesGlob)
-            self._useEdgePort = cfg.get('useEdgePort', self._useEdgePort)
+            self._target = cfg.get('target', self._target)
             self._useGlobalServiceMap = cfg.get('useGlobalServiceMap', self._useGlobalServiceMap)
             self._useUniqueMask = cfg.get('useUniqueMask', self._useUniqueMask)
             self._logPerformance = cfg.get('logPerformance', self._logPerformance)

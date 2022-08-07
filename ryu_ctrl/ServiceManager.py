@@ -30,12 +30,12 @@ class ServiceManager:
                  clusterGlob: str,
                  servicesGlob: str,
                  useGlobalServiceMap: bool = False,
-                 useEdgePort: bool = False):
+                 target: str = "pod"):
 
         self.ctx = context
         self.log = log
         self._useGlobalServiceMap = useGlobalServiceMap
-        self._useEdgePort = useEdgePort
+        self._target = target
 
         self.log.debug("useGlobalServiceMap=" + str(useGlobalServiceMap))
 
@@ -85,7 +85,7 @@ class ServiceManager:
 
         for filename in files:
             service = K8sService(self._labelFromServiceFilename(filename), filename)
-            svc = service.toService(edgeIP=None, useEdgePort=self._useEdgePort)
+            svc = service.toService(edgeIP=None, target=self._target)
 
             self._addService(svc)
 
@@ -141,15 +141,13 @@ class ServiceManager:
         assert (service)
 
         perf = PerfCounter()
-        print("Deploy Service Label=", service.label)
-
         svc = K8sService(service.label, self._filenameFromServiceLabel(service.label))
         svc.annotate()
 
         edge.cluster.applyYaml(yml=svc.yaml)
         self.log.info("Service " + str(svc) + " deployed.")
 
-        svcInsts = edge.cluster.services(service.label, self._useEdgePort)
+        svcInsts = edge.cluster.services(service.label, self._target)
 
         if svcInsts:
             svcInst = svcInsts[0]
@@ -167,22 +165,25 @@ class ServiceManager:
                 deps = edge.cluster.deployments(service.label)
 
                 if len(pods) and len(deps):
-                    print("Deps: Ready= ", deps[0].ready_replicas, "numEndpoints=", "podStatus",
-                          pods[0]["status"]["phase"], pods[0]["status"]["pod_ip"])
+                    self.log.debug("Deployment: ready={} podStatus={}".format(deps[0].ready_replicas,
+                                                                              pods[0]["status"]["phase"]))
 
                 # if len(pods) and pods[0]["status"]["phase"] == "Running":  # not reliable
                 if len(deps) and deps[0].ready_replicas:
 
-                    # REVIEW Route directly to Pod to avoid iptables setup delay
-                    # replace ClusterIP with PodIP
-                    svcInst.eAddr = SocketAddr(IPAddr(pods[0]["status"]["pod_ip"]), svcInst.service.vAddr.port)
-                    # FIXME using the vPort is a quick fix, but podPort must be used
+                    svcInst.deployment = deps[0]
 
+                    # REVIEW Route directly to Pod to avoid iptables setup delay
+                    #
+                    if self._target == "pod":
+                        #
+                        # replace ClusterIP with PodIP (was not known before)
+                        #
+                        svcInst.eAddr.ip = IPAddr(pods[0]["status"]["pod_ip"])
                     break
                 time.sleep(0.1)
 
-            print("Pod running:", pods[0]["status"]["pod_ip"], "time=", perf.ms(), "ms")
-            print("svcInst:", svcInst)
+            self.log.info("Service ready after {}ms, pod={}".format(perf.ms(), pods[0]["status"]["pod_ip"]))
             self._addServiceInstance(svcInst, edge)
 
             return svcInst

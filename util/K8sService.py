@@ -49,7 +49,7 @@ class K8sService(object):
     def _addLabel(self, item):
         item.setdefault("metadata", {}).setdefault("labels", {})[K8sService.LABEL_NAME] = self.label
 
-    def toService(self, edgeIP: IPAddr, useEdgePort: bool):  # -> returns Service or ServiceInstance
+    def toService(self, edgeIP: IPAddr, target: str):  # -> returns Service or ServiceInstance
         #
         # REVIEW Move somewhere else? Refactor?
         #
@@ -65,20 +65,24 @@ class K8sService(object):
         if edgeIP is None or self.clusterIP is None:
             return service
 
-        if self.type == "LoadBalancer":
-            ePort = self.port
-        else:
-            # ATTENTION: We use the 'node'Port as edgePort !! e.g. 31097
-            ePort = self.nodePort
-            if ePort == None:
-                ePort = 0
+        # Exposed / Cluster / Pod
+        #
+        if target == "pod":
+            eAddr = SocketAddr(self.clusterIP, self.podPort)  # FIXME/REVIEW Needs to be replaced by real IP later
 
-        if useEdgePort:
+        elif target == "cluster":
+            eAddr = SocketAddr(self.clusterIP, self.port)
+
+        elif target == "exposed":
+            #
+            # use LoadBalancer if avail, otherwise NodePort routing
+            #
+            ePort = self.port if self.type == "LoadBalancer" else self.nodePort
+            assert (ePort != None)
             eAddr = SocketAddr(edgeIP, ePort)
-        else:
-            eAddr = SocketAddr(self.clusterIP, self.port)  # nodeAddr
 
-        # FIXME podPort needs to be considered too
+        else:
+            assert (False, "Invalid target: Must be pod|cluster|exposed.")
 
         return ServiceInstance(service, edgeIP, eAddr)
 

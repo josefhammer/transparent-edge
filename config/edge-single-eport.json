@@ -15,5 +15,5 @@
     },
     "arpSrcMac": "02:00:00:00:00:03",
     "flowIdleTimeout": 5,
-    "useEdgePort": true
+    "target": "exposed"
 }
