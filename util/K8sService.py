@@ -19,6 +19,7 @@ class K8sService(object):
         self.label = label
         self.port = None
         self.nodePort = None
+        self.podPort = None
         self.clusterIP = None
         self.type = None
         self.yaml = None
@@ -116,6 +117,11 @@ class K8sService(object):
         for port in ports:
             self.port = port.get("port")
             self.nodePort = port.get('node_port')  # 'nodePort' when exported via kubectl
+
+            # K8s: If targetPort is not defined, it is 'port' by default.
+            # The key is called 'targetPort' in Yaml and 'target_port' in the API.
+            #
+            self.podPort = port.get("targetPort", port.get('target_port', self.port))
 
             # REVIEW currently, we use only one port (could be more, though; in particular with node ports)
             break

@@ -10,6 +10,8 @@ from util.RyuDPID import DPID
 from util.IPAddr import IPAddr
 from util.TinyServiceTrie import TinyServiceTrie
 
+from util.Performance import PerfCounter
+
 import os
 import glob
 import time
@@ -136,6 +138,8 @@ class ServiceManager:
 
         svc = K8sService(service.label, self._filenameFromServiceLabel(service.label))
         svc.annotate()
+
+        perf = PerfCounter()
         edge.cluster.applyYaml(yml=svc.yaml)
         self.log.info("Service " + str(svc) + " deployed.")
 
@@ -146,16 +150,35 @@ class ServiceManager:
             if not svcInst:
                 return None
 
-            print("svcInst:", svcInst)
-            self._addServiceInstance(svcInst, edge)
-
+            # TODO Replace with 'watch'
+            #
+            # Unfortunately, filtering by label is not perfectly reliable. Should use pod-template-hash instead:
+            # (https://stackoverflow.com/questions/52957227/kubectl-command-to-list-pods-of-a-deployment-in-kubernetes)
+            #
             while (True):
+
+                pods = edge.cluster.pods(service.label)
                 deps = edge.cluster.deployments(service.label)
 
-                print("Deps: Ready= ", deps[0].ready_replicas)
-                if deps[0].ready_replicas:
+                if len(pods) and len(deps):
+                    print("Deps: Ready= ", deps[0].ready_replicas, "numEndpoints=", "podStatus",
+                          pods[0]["status"]["phase"], pods[0]["status"]["pod_ip"])
+
+                # if len(pods) and pods[0]["status"]["phase"] == "Running":  # not reliable
+                if len(deps) and deps[0].ready_replicas:
+
+                    ms = perf.ms()
+                    print("Pod running:", pods[0]["status"]["pod_ip"], "time=", ms, "ms")
+
+                    # REVIEW Route directly to Pod to avoid iptables setup delay
+                    # replace ClusterIP with PodIP
+                    svcInst.nAddr = SocketAddr(IPAddr(pods[0]["status"]["pod_ip"]), svcInst.nAddr.port)
+
                     break
-                time.sleep(1)
+                time.sleep(0.1)
+
+            print("svcInst:", svcInst)
+            self._addServiceInstance(svcInst, edge)
 
             return svcInst
 
