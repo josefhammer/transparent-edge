@@ -172,6 +172,7 @@ class EdgeDetector:
         # 194.232.104.150, uniquePrefix=24, prefixes=[8]:       mask = 00000001.00000000.00000001.00000000
         #
         uniquePrefix, prefixes = self.ctx.serviceMngr.uniquePrefix(dst.ip)
+        match = of.Match()
 
         # if not a ServiceIP then the port does not matter (to reduce the number of OpenFlow rules)
         #
@@ -191,7 +192,7 @@ class EdgeDetector:
                 mask = 1 << (32 - prefix)  # add bit at position(prefix)
 
         ipMask = str(IPAddr(mask))
-        match = of.Match().dstIP(dst.ip, ipMask)
+        match.dstIP(dst.ip, ipMask)
 
         if self.isDebugLogLevel and (uniquePrefix < 32 or self.useUniqueMask):
             self.log.debug("Extended match for {}/{} (mask={}, prefixes={})".format(
