@@ -36,10 +36,11 @@ class EdgeController:
 
         # Load configuration
         #
-        self.servicesFolder = None
-        self.servicesFileExt = None
-        self.switchConfig = None
+        self._clusterGlob = "/var/emu/*-k8s.json"  # default value
+        self._servicesGlob = "/var/emu/services/*.yml"  # default value
+        self._switchConfig = None
         self._useGlobalServiceMap = False
+        self._useEdgePort = False
         self._useUniqueMask = True
         self._logPerformance = False
         self.loadConfig(os_getenv('EDGE_CONFIG'))
@@ -52,11 +53,11 @@ class EdgeController:
         self.ctx.serviceMngr = ServiceManager(
             self.ctx,
             self.logger("ServiceMngr"),
-            self.servicesFolder,
-            self.servicesFileExt,
+            clusterGlob=self._clusterGlob,
+            servicesGlob=self._servicesGlob,
             useGlobalServiceMap=self._useGlobalServiceMap)
 
-        self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self.useEdgePort,
+        self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self._useEdgePort,
                                          self.flowIdleTimeout * 2)
 
         for dpid, edge in self.ctx.edges.items():
@@ -135,7 +136,7 @@ class EdgeController:
 
         self.ctx.switches[of.dpid] = switch
 
-        switchCfg = self.switchConfig.get(str(of.dpid.asShortInt()))
+        switchCfg = self._switchConfig.get(str(of.dpid.asShortInt()))
         if switchCfg:
             switch.gateway = IPAddr(switchCfg["gateway"])
 
@@ -148,7 +149,7 @@ class EdgeController:
         #
         edge = self.ctx.edges.get(of.dpid)
         if edge and edge.cluster:
-            self.ctx.serviceMngr.initServices(edge, edge.cluster.getServices())
+            self.ctx.serviceMngr.initServices(edge, edge.cluster.services(), edge.cluster.deployments())
 
         self.log.info("")
         self.log.info("")
@@ -185,14 +186,14 @@ class EdgeController:
             #
             self.arpSrcMac = cfg['arpSrcMac']
             self.flowIdleTimeout = int(cfg['flowIdleTimeout'])
-            self.servicesFolder = cfg['servicesFolder']
-            self.servicesFileExt = cfg['servicesFileExt']
-            self.switchConfig = cfg['switches']
+            self._switchConfig = cfg['switches']
 
-            self.useEdgePort = cfg.get('useEdgePort', False)
-            self._useGlobalServiceMap = cfg.get('useGlobalServiceMap', False)
-            self._useUniqueMask = cfg.get('useUniqueMask', True)
-            self._logPerformance = cfg.get('logPerformance', False)
+            self._clusterGlob = cfg.get('clusterGlob', self._clusterGlob)
+            self._servicesGlob = cfg.get('servicesGlob', self._servicesGlob)
+            self._useEdgePort = cfg.get('useEdgePort', self._useEdgePort)
+            self._useGlobalServiceMap = cfg.get('useGlobalServiceMap', self._useGlobalServiceMap)
+            self._useUniqueMask = cfg.get('useUniqueMask', self._useUniqueMask)
+            self._logPerformance = cfg.get('logPerformance', self._logPerformance)
 
             for dpid, switch in cfg['switches'].items():
 

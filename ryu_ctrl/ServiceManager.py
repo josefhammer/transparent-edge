@@ -1,5 +1,8 @@
+from unicodedata import name
+
+from util.K8sService import K8sService
 from .Context import Context
-from util.ClusterK8s import ClusterK8s
+from util.K8sCluster import K8sCluster
 from util.EdgeTools import Edge
 from util.SocketAddr import SocketAddr
 from util.Service import ServiceInstance, Service
@@ -9,6 +12,7 @@ from util.TinyServiceTrie import TinyServiceTrie
 
 import os
 import glob
+import time
 
 
 class ServiceManager:
@@ -18,7 +22,7 @@ class ServiceManager:
 
     # REVIEW Might have to be synchronized due to parallel access.
 
-    def __init__(self, context: Context, log, svcFolder, fileExt, useGlobalServiceMap: bool = False):
+    def __init__(self, context: Context, log, clusterGlob: str, servicesGlob: str, useGlobalServiceMap: bool = False):
 
         self.ctx = context
         self.log = log
@@ -28,8 +32,8 @@ class ServiceManager:
 
         self._services: TinyServiceTrie = TinyServiceTrie(keysOnly=not useGlobalServiceMap)  # SocketAddr
 
-        if svcFolder != None:
-            self.loadServices(svcFolder, fileExt)
+        self.loadClusters(clusterGlob)
+        self.loadServices(servicesGlob)
 
     def isService(self, addr: SocketAddr):
         return self._services.contains(addr)
@@ -43,14 +47,14 @@ class ServiceManager:
     def isServer(self, dpid, addr: SocketAddr):
         return dpid in self.ctx.edges and addr in self.ctx.edges[dpid].nServices
 
-    def loadServices(self, folder, fileExt):
+    def loadClusters(self, clusterGlob):
 
-        files = glob.glob(os.path.join(folder, '*' + fileExt))
+        files = glob.glob(clusterGlob)
 
         for filename in files:
 
-            clusterName = os.path.basename(filename).split(fileExt)[0]
-            apiServer, clusterType = clusterName.split("-")
+            clusterName = os.path.splitext(os.path.basename(filename))[0]
+            apiServer, clusterType = clusterName.split("-")  # clusterType after '-'
             edgeIP = apiServer.split(":")[0]
 
             switch = None
@@ -64,33 +68,95 @@ class ServiceManager:
                 # NOTE: designed to allow different types of edge clusters, not only K8s
                 #
                 if clusterType == "k8s":
-                    edge.cluster = ClusterK8s(apiServer, filename)
+                    edge.cluster = K8sCluster(apiServer, filename)
 
-    def initServices(self, edge: Edge, svcInstances: list):
+    def loadServices(self, servicesGlob):
+
+        files = glob.glob(servicesGlob)
+
+        for filename in files:
+            service = K8sService(self._labelFromServiceFilename(filename), filename)
+            svc = service.toService(edgeIP=None)
+
+            self._addService(svc)
+
+    def _labelFromServiceFilename(self, filename) -> str:  # REVIEW Move to Service or somewhere else?
+
+        return os.path.splitext(os.path.basename(filename))[0]
+
+    def _filenameFromServiceLabel(self, label) -> str:  # REVIEW Move to Service or somewhere else?
+
+        # REVIEW Does not support files in subdirectories or different extensions!! (i.e., the glob pattern)
+        # Store filename instead of label? But: Initialization from K8s?
+        #
+        return os.path.join("/var/emu/services/", label + ".yml")
+
+    def initServices(self, edge: Edge, svcInstances: list, deployments: list):
         """
         Will be called after the switch connected. Before that, we may not be able to connect to the cluster.
         """
         for svcInstance in svcInstances:
 
-            svc = svcInstance.service
+            svcInstance.service = self._addService(svcInstance.service)
+            self._addServiceInstance(svcInstance, edge)
 
-            # Add service to global ServiceTrie
-            #
-            if not self._services.contains(svc.vAddr):
-                self._services.set(svc.vAddr, svc)
-                self.log.info("ServiceID {}:{} {} -> {}".format(svc.vAddr.ip, svc.vAddr.port,
-                                                                '(' + svc.domain + ')' if svc.domain else '', svc.name))
+    def _addService(self, svc: Service):
 
-            # ... or get the existing one
-            elif self._useGlobalServiceMap:
-                service = self._services[svc.vAddr]
-                assert service.domain == svc.domain and service.name == svc.name  # same service in all edges
-                svcInstance.service = service  # single instance to save memory
+        # Add service to global ServiceTrie
+        #
+        if not self._services.contains(svc.vAddr):
+            self._services.set(svc.vAddr, svc)
+            self.log.info("ServiceID " + str(svc))
+            return svc
 
-            # Add ServiceInstance to edge (register with IP addresses for both directions if different)
-            #
-            edge.vServices[svcInstance.service.vAddr] = svcInstance  # REVIEW Requires to have a single instance only
-            edge.eServices[svcInstance.eAddr] = svcInstance
-            edge.nServices[svcInstance.nAddr] = svcInstance
+        # ... or get the existing one
+        elif self._useGlobalServiceMap:
+            service = self._services[svc.vAddr]
+            if service.label != svc.label:
+                print("service=", service, "svc=", svc)
+            assert service.label == svc.label  # same service in all edges
+            return service  # single instance to save memory
 
-            self.log.info("ServiceInstance @ {}: {}".format(edge.dpid, svcInstance))
+    def _addServiceInstance(self, svcInstance, edge):
+
+        # Add ServiceInstance to edge (register with IP addresses for both directions if different)
+        #
+        edge.vServices[svcInstance.service.vAddr] = svcInstance  # REVIEW Requires to have a single instance only
+        edge.eServices[svcInstance.eAddr] = svcInstance
+        edge.nServices[svcInstance.nAddr] = svcInstance
+
+        self.log.info("ServiceInstance @ {}: {}".format(edge.dpid, svcInstance))
+
+    def deployService(self, edge: Edge, vAddr: SocketAddr):
+
+        service = self._services.get(vAddr)
+        assert (service)
+
+        print("Deploy Service Label=", service.label)
+
+        svc = K8sService(service.label, self._filenameFromServiceLabel(service.label))
+        svc.annotate()
+        edge.cluster.applyYaml(yml=svc.yaml)
+        self.log.info("Service " + str(svc) + " deployed.")
+
+        svcInsts = edge.cluster.services(service.label)
+
+        if svcInsts:
+            svcInst = svcInsts[0]
+            if not svcInst:
+                return None
+
+            print("svcInst:", svcInst)
+            self._addServiceInstance(svcInst, edge)
+
+            while (True):
+                deps = edge.cluster.deployments(service.label)
+
+                print("Deps: Ready= ", deps[0].ready_replicas)
+                if deps[0].ready_replicas:
+                    break
+                time.sleep(1)
+
+            return svcInst
+
+        return None

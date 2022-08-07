@@ -3,8 +3,10 @@
 """
 Provides the context for the main components.
 """
+from __future__ import annotations
 
-from util.EdgeTools import Switches, SwitchTable
+from util.EdgeTools import Switches, SwitchTable, Edge
+from util.RyuDPID import DPID
 
 
 class Context(object):
@@ -16,4 +18,4 @@ class Context(object):
         self.serviceMngr = None
         self.switches = Switches()
         self.hosts = SwitchTable()
-        self.edges = {}  # dict: DPID -> Edge
+        self.edges: dict[DPID, Edge] = {}  # dict: DPID -> Edge

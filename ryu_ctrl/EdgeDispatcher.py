@@ -42,10 +42,17 @@ class EdgeDispatcher:
 
             services = self.availServers(dpid, dst)
             if not services:
-                log.warn("No server found for service {} at switch {}.".format(dst, dpid))
-                return None
 
-            (svc, switch) = services[0]
+                clusters = self.availClusters(dpid)
+
+                (edge, switch) = clusters[0]
+                svc = self.ctx.serviceMngr.deployService(edge, dst)
+
+                if not svc:
+                    log.warn("No server found for service {} at switch {}.".format(dst, dpid))
+                    return None
+            else:
+                (svc, switch) = services[0]
 
             if self.useEdgePort and svc.eAddr.port:
                 edge = SocketAddr(svc.eAddr.ip, svc.eAddr.port, self.ctx.hosts[switch][svc.eAddr.ip].mac)
@@ -119,10 +126,23 @@ class EdgeDispatcher:
                 if svc.eAddr.ip not in self.ctx.hosts[switch]:
                     log.warn("Server {} not available at switch {}".format(svc.eAddr.ip, dpid))
                     log.debug(self.ctx.hosts)
-
-                elif switch == dpid:
-                    result.insert(0, (svc, switch))  # preference for local server
                 else:
-                    result.append((svc, switch))
-
+                    self._addServer(switch, dpid, result, svc)
         return result
+
+    def availClusters(self, dpid):
+
+        result = []
+        for switch, edge in self.ctx.edges.items():
+
+            if edge.cluster and edge.cluster._ip and edge.cluster._ip in self.ctx.hosts[switch]:
+
+                self._addServer(switch, dpid, result, edge)
+        return result
+
+    def _addServer(self, switch, dpid, servers, item):
+
+        if switch == dpid:
+            servers.insert(0, (item, switch))  # preference for local server
+        else:
+            servers.append((item, switch))

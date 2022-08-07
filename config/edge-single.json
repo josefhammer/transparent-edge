@@ -14,8 +14,6 @@
     },
     "arpSrcMac": "02:00:00:00:00:03",
     "flowIdleTimeout": 5,
-    "servicesFolder": "/var/emu",
-    "servicesFileExt": "-cluster.json",
     "useUniqueMask": true,
     "useGlobalServiceMap": true
 }

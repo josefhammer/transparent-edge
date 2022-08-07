@@ -12,11 +12,16 @@ class Service(object):
     Contains the data about a virtual service.
     """
 
-    def __init__(self, vAddr: SocketAddr, domain, name):
+    def __init__(self, vAddr: SocketAddr, label):
 
         self.vAddr = vAddr
-        self.domain = domain
-        self.name = name  # e.g. K8s service label or name
+        self.label = label
+
+    def domain(self):  # REVIEW property?
+        return '.'.join(reversed(self.label.split('.')[:-1]))  # remove last part (= name) and reverse the others
+
+    def name(self):  # REVIEW property?
+        return self.label.rsplit('.', 1)[1]
 
     def __eq__(self, other):
         if (isinstance(other, Service)):
@@ -30,10 +35,10 @@ class Service(object):
         return hash(self.vAddr)
 
     def __repr__(self):
-        return "{}:{} ({}, {})".format(self.domain, self.vAddr.port, self.name, self.vAddr.ip)
+        return "{} ({})".format(self.vAddr, self.label)
 
 
-class ServiceInstance(dict):
+class ServiceInstance(object):
     """
     Contains all the data for a single edge service instance.
     """
@@ -43,6 +48,7 @@ class ServiceInstance(dict):
         self.service = service
         self.eAddr = eAddr  # edge address (= ingress)
         self.nAddr = nAddr  # node address (= actual edge node)
+        self.deployment = Deployment(service.name)
 
     def __eq__(self, other):
         if (isinstance(other, ServiceInstance)):
@@ -53,4 +59,29 @@ class ServiceInstance(dict):
         return not self == other
 
     def __repr__(self):
-        return "{} @ {} ({})".format(self.service, self.eAddr, self.nAddr)
+        return "{} @ {} ({}) [{}/{} ready]".format(self.service, self.eAddr, self.nAddr, self.deployment.ready_replicas,
+                                                   self.deployment.available_replicas)
+
+
+class Deployment(object):
+    """
+    Contains all the data about a single edge service deployment.
+    """
+
+    def __init__(self, label, available_replicas=0, ready_replicas=0, yml=None):
+
+        self.label = label
+        self.available_replicas = available_replicas
+        self.ready_replicas = ready_replicas
+        self.yml = yml  # FIXME
+
+    def __eq__(self, other):
+        if (isinstance(other, Deployment)):
+            return self.label == other.label
+        return False
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __repr__(self):
+        return "{} (ready {}/{})".format(self.label, self.available_replicas, self.ready_replicas)
