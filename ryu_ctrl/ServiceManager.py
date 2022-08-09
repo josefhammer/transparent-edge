@@ -107,13 +107,14 @@ class ServiceManager:
         svcInstances = edge.cluster.services(None, self._target)
         deployments = edge.cluster.deployments()
 
-        for svcInstance in svcInstances.values():
-            if isinstance(svcInstance, ServiceInstance):  # might just be Service
+        for svcList in svcInstances.values():
+            for svcInstance in svcList:
+                if isinstance(svcInstance, ServiceInstance):  # might just be Service
 
-                label = svcInstance.service.label
-                svcInstance.service = self._addService(svcInstance.service)
-                svcInstance.deployment = deployments.get(label, [Deployment()])[0]
-                self._addServiceInstance(svcInstance, edge)
+                    label = svcInstance.service.label
+                    svcInstance.service = self._addService(svcInstance.service)
+                    svcInstance.deployment = deployments.get(label, [Deployment()])[0]
+                    self._addServiceInstance(svcInstance, edge)
 
     def _addService(self, svc: Service):
 
