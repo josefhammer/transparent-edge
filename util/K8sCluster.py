@@ -17,6 +17,8 @@ from util.K8sService import K8sService
 
 from logging import WARNING, getLogger
 
+import time
+
 
 class K8sCluster:
     """
@@ -39,6 +41,54 @@ class K8sCluster:
 
         self._k8s = client.CoreV1Api(self._apiClient)
         self._k8sApps = client.AppsV1Api(self._apiClient)
+
+    @staticmethod
+    def initService(label, filename=None, yml: dict = None):
+        """
+        Factory method.
+        """
+        return K8sService(label, filename, yml)
+
+    def deployService(self, service: K8sService, target: str):  # REVIEW Remove target param?
+
+        assert (service and service.yaml)
+        self.applyYaml(yml=service.yaml)
+        self._log.info("Service " + str(service) + " deployed.")
+
+        svcInsts = self.services(service.label, target)
+
+        if svcInsts:
+            svcInst = svcInsts[0]
+            if not svcInst:
+                return None
+
+            # TODO Replace with 'watch'
+            #
+            # Unfortunately, filtering pods by label is not perfectly reliable. Should use pod-template-hash instead:
+            # (https://stackoverflow.com/questions/52957227/kubectl-command-to-list-pods-of-a-deployment-in-kubernetes)
+            #
+            # E.g., here the IP of a previous POD is used (and thus it does not work):
+            #
+            # [K8s        ] Deployment: ready=1 podStatus=Running podIP=10.1.100.160     # <-- should be 162 already
+            # [ServiceMngr] ServiceInstance @ #1: 143.205.180.80:80 (at.aau.hostinfo) @ 10.0.2.100 (10.1.100.160:80)
+            #
+            while (True):
+
+                pods = self.pods(service.label)
+                deps = self.deployments(service.label)
+
+                if len(pods) and len(deps):
+                    self._log.debug("Deployment: ready={} podStatus={} podIP={}".format(
+                        deps[0].ready_replicas, pods[0].status, pods[0].ip))
+
+                if len(deps) and deps[0].ready_replicas:
+
+                    svcInst.deployment = deps[0]
+                    break
+                time.sleep(0.1)
+
+            return svcInst
+        return None
 
     def services(self, label: str, target: str):
 

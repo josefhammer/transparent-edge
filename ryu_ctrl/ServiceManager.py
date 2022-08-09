@@ -1,20 +1,16 @@
 from unicodedata import name
 
-from util.K8sService import K8sService
 from .Context import Context
 from util.K8sCluster import K8sCluster
 from util.EdgeTools import Edge
 from util.SocketAddr import SocketAddr
 from util.Service import Deployment, ServiceInstance, Service
-from util.RyuDPID import DPID
 from util.IPAddr import IPAddr
 from util.TinyServiceTrie import TinyServiceTrie
-
 from util.Performance import PerfCounter
 
 import os
 import glob
-import time
 
 
 class ServiceManager:
@@ -84,7 +80,10 @@ class ServiceManager:
         files = glob.glob(servicesGlob)
 
         for filename in files:
-            service = K8sService(self._labelFromServiceFilename(filename), filename)
+            #
+            # REVIEW Currently, only K8s Yaml files supported.
+            #
+            service = K8sCluster.initService(self._labelFromServiceFilename(filename), filename)
             svc = service.toService(edgeIP=None, target=self._target)
 
             self._addService(svc)
@@ -159,42 +158,14 @@ class ServiceManager:
         assert (service)
 
         perf = PerfCounter()
-        svc = K8sService(service.label, self._filenameFromServiceLabel(service.label))
+        svc = edge.cluster.initService(service.label, self._filenameFromServiceLabel(service.label))
         svc.annotate()
 
-        edge.cluster.applyYaml(yml=svc.yaml)
-        self.log.info("Service " + str(svc) + " deployed.")
+        svcInstance = edge.cluster.deployService(svc, self._target)
 
-        svcInsts = edge.cluster.services(service.label, self._target)
-
-        if svcInsts:
-            svcInst = svcInsts[0]
-            if not svcInst:
-                return None
-
-            # TODO Replace with 'watch'
-            #
-            # Unfortunately, filtering pods by label is not perfectly reliable. Should use pod-template-hash instead:
-            # (https://stackoverflow.com/questions/52957227/kubectl-command-to-list-pods-of-a-deployment-in-kubernetes)
-            #
-            while (True):
-
-                pods = edge.cluster.pods(service.label)
-                deps = edge.cluster.deployments(service.label)
-
-                if len(pods) and len(deps):
-                    self.log.debug("Deployment: ready={} podStatus={}".format(deps[0].ready_replicas, pods[0].status))
-
-                # if len(pods) and pods[0]["status"]["phase"] == "Running":  # not reliable
-                if len(deps) and deps[0].ready_replicas:
-
-                    svcInst.deployment = deps[0]
-                    break
-                time.sleep(0.1)
-
-            self.log.info("Service ready after {}ms, pod={}".format(perf.ms(), pods[0].ip))
-            self._addServiceInstance(svcInst, edge)
-
-            return svcInst
+        if svcInstance is not None:
+            self._addServiceInstance(svcInstance, edge)
+            self.log.info("Service {} ready after {} ms.".format(str(svcInstance), perf.ms()))
+            return svcInstance
 
         return None
