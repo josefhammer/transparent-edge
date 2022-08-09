@@ -49,7 +49,7 @@ class ServiceInstance(object):
         self.service = service
         self.edgeIP = edgeIP
         self.eAddr = eAddr  # edge service address (depends on config flags)
-        self.deployment = Deployment(service.name)
+        self.deployment = Deployment()
 
     def __eq__(self, other):
         if (isinstance(other, ServiceInstance)):
