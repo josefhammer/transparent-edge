@@ -119,8 +119,8 @@ class EdgeDispatcher:
             svc = edge.vServices.get(addr)
             if svc is not None:
 
-                if svc.eAddr.ip not in self.ctx.hosts[switch]:
-                    log.warn("Server {} not available at switch {}".format(svc.eAddr.ip, dpid))
+                if svc.edgeIP not in self.ctx.hosts[switch]:
+                    log.warn("Server {} not available at switch {}".format(svc.edgeIP, dpid))
                     log.debug(self.ctx.hosts)
                 else:
                     self._addServer(switch, dpid, result, svc)
