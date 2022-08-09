@@ -107,16 +107,13 @@ class ServiceManager:
         svcInstances = edge.cluster.services(None, self._target)
         deployments = edge.cluster.deployments()
 
-        depMap = {}
-        for dep in deployments:
-            depMap[dep.label] = dep
+        for svcInstance in svcInstances.values():
+            if isinstance(svcInstance, ServiceInstance):  # might just be Service
 
-        for svcInstance in svcInstances:
-
-            label = svcInstance.service.label
-            svcInstance.service = self._addService(svcInstance.service)
-            svcInstance.deployment = depMap.get(label, Deployment(label))
-            self._addServiceInstance(svcInstance, edge)
+                label = svcInstance.service.label
+                svcInstance.service = self._addService(svcInstance.service)
+                svcInstance.deployment = deployments.get(label, [Deployment()])[0]
+                self._addServiceInstance(svcInstance, edge)
 
     def _addService(self, svc: Service):
 
@@ -146,7 +143,7 @@ class ServiceManager:
             pods = edge.cluster.pods(svcInstance.service.label)
             assert (len(pods))
 
-            svcInstance.eAddr.ip = IPAddr(pods[0]["status"]["pod_ip"])
+            svcInstance.eAddr.ip = IPAddr(pods[0].ip)
 
         # Add ServiceInstance to edge (register with IP addresses for both directions if different)
         #
@@ -185,8 +182,7 @@ class ServiceManager:
                 deps = edge.cluster.deployments(service.label)
 
                 if len(pods) and len(deps):
-                    self.log.debug("Deployment: ready={} podStatus={}".format(deps[0].ready_replicas,
-                                                                              pods[0]["status"]["phase"]))
+                    self.log.debug("Deployment: ready={} podStatus={}".format(deps[0].ready_replicas, pods[0].status))
 
                 # if len(pods) and pods[0]["status"]["phase"] == "Running":  # not reliable
                 if len(deps) and deps[0].ready_replicas:
@@ -195,7 +191,7 @@ class ServiceManager:
                     break
                 time.sleep(0.1)
 
-            self.log.info("Service ready after {}ms, pod={}".format(perf.ms(), pods[0]["status"]["pod_ip"]))
+            self.log.info("Service ready after {}ms, pod={}".format(perf.ms(), pods[0].ip))
             self._addServiceInstance(svcInst, edge)
 
             return svcInst

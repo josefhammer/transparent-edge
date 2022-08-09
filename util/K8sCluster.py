@@ -5,11 +5,13 @@ from __future__ import annotations
 import urllib3
 urllib3.disable_warnings()  # https://urllib3.readthedocs.io/en/1.26.x/advanced-usage.html#ssl-warnings
 
-from kubernetes import client, utils
+from kubernetes import client, config, utils
 from kubernetes.client.rest import ApiException
 
+from collections import defaultdict
+
 from util.IPAddr import IPAddr
-from util.Service import Deployment, ServiceInstance, Service
+from util.Service import Deployment, Pod, ServiceInstance, Service
 from util.SocketAddr import SocketAddr
 from util.K8sService import K8sService
 
@@ -40,41 +42,56 @@ class K8sCluster:
 
     def services(self, label: str, target: str):
 
-        result = []
-        services = self._getItems(label, self._k8s.list_namespaced_service)
+        items = self.rawServices(label)
 
-        for item in services:
+        for item in items:
             item.kind = "Service"  # unfortunately, it's returned as None
 
-            svcInstance = K8sService(label=None, yml=[item.to_dict()]).toService(self._ip, target)
-
-            if isinstance(svcInstance, ServiceInstance):
-                result.append(svcInstance)
-
-            # REVIEW What should happen if no ClusterIP is yet set up and thus we don't get a ServiceInstance?
-        return result
+        return self._toMap(label, self.rawServices,
+                           lambda i: K8sService(label=None, yml=[item.to_dict()]).toService(self._ip, target))
 
     def deployments(self, label=None):
 
-        items = self._getItems(label, self._k8sApps.list_namespaced_deployment)
-
-        return [
-            Deployment(
-                i.metadata.labels.get(self._labelName), self._noneToZero(i.status.available_replicas),
-                self._noneToZero(i.status.ready_replicas)) for i in items
-        ]
+        return self._toMap(label, self.rawDeployments,
+            lambda i: Deployment(self._noneToZero(i.status.available_replicas),
+                self._noneToZero(i.status.ready_replicas)))
 
     def pods(self, label=None):
 
-        items = self._getItems(label, self._k8s.list_namespaced_pod)
+        return self._toMap(label, self.rawPods, lambda i: Pod(i.status.pod_ip, i.status.phase))
 
-        return [i.to_dict() for i in items]
+    def rawServices(self, label=None):
 
-    def endpoints(self, label=None):
+        return self._getItems(label, self._k8s.list_namespaced_service, self._k8s.list_service_for_all_namespaces)
 
-        items = self._getItems(label, self._k8s.list_namespaced_endpoints)
+    def rawDeployments(self, label=None):
 
-        return [i.to_dict() for i in items]
+        return self._getItems(label, self._k8sApps.list_namespaced_deployment,
+                              self._k8sApps.list_deployment_for_all_namespaces)
+
+    def rawPods(self, label=None):
+
+        return self._getItems(label, self._k8s.list_namespaced_pod, self._k8s.list_pod_for_all_namespaces)
+
+    def rawEndpoints(self, label=None):
+
+        return self._getItems(label, self._k8s.list_namespaced_endpoints, self._k8s.list_endpoints_for_all_namespaces)
+
+    def _toMap(self, label, rawFunc, func):
+
+        items = rawFunc(label)
+
+        # single label requested -> return array
+        #
+        if label:
+            return [func(i) for i in items]
+
+        # otherwise -> return dict[label]
+        #
+        result = defaultdict(list)
+        for i in items:
+            result[None if not i.metadata.labels else i.metadata.labels.get(self._labelName)].append(func(i))
+        return result
 
     def applyYaml(self, filename=None, yml=None):
         """
@@ -93,8 +110,16 @@ class K8sCluster:
 
     def _apiClient(self, apiServer, tokenFileName):
 
-        token = self._readToken(tokenFileName)
+        if self._ip == IPAddr("127.0.0.1"):
+            #
+            # REVIEW Different behavior on localhost to bypass bug:
+            # - https://github.com/krestomatio/container_builder/issues/54
+            # - https://github.com/kubernetes-client/python/issues/1333
+            #
+            config.load_kube_config()
+            return client.ApiClient()
 
+        token = self._readToken(tokenFileName)
         if token:
             cfg = client.Configuration()  # create new config object
             cfg.host = "https://" + apiServer  # specify the endpoint of our K8s cluster
@@ -129,18 +154,25 @@ class K8sCluster:
 
     def _filterLabelAvailable(self, items):
 
+        if self._labelName is None:
+            return items
         return filter(lambda i: i.metadata and i.metadata.labels and i.metadata.labels.get(self._labelName), items)
 
     def _filterNamespace(self, items):
 
+        if self._namespace is None:
+            return items
         return filter(lambda item: self._namespace == item.metadata.namespace, items)
 
-    def _getItems(self, label, func):
+    def _getItems(self, label, funcNs, funcAll):
 
         try:
-            ret = func(self._namespace, label_selector=self._labelSelector(label))
-            # return self._filterNamespace(self._filterLabelAvailable(ret.items))
-            return self._filterLabelAvailable(ret.items)
+            if self._namespace is None:
+                ret = funcAll(label_selector=self._labelSelector(label))
+            else:
+                ret = funcNs(self._namespace, label_selector=self._labelSelector(label))
+
+            return self._filterNamespace(self._filterLabelAvailable(ret.items))
 
         except ApiException as e:
             self._log.warn(e)

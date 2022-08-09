@@ -69,19 +69,18 @@ class Deployment(object):
     Contains all the data about a single edge service deployment.
     """
 
-    def __init__(self, label, available_replicas=0, ready_replicas=0):
+    def __init__(self, available_replicas=0, ready_replicas=0):
 
-        self.label = label
         self.available_replicas = available_replicas
         self.ready_replicas = ready_replicas
 
-    def __eq__(self, other):
-        if (isinstance(other, Deployment)):
-            return self.label == other.label
-        return False
 
-    def __ne__(self, other):
-        return not self == other
+class Pod(object):
+    """
+    Contains the necessary data about a single pod.
+    """
 
-    def __repr__(self):
-        return "{} (ready {}/{})".format(self.label, self.available_replicas, self.ready_replicas)
+    def __init__(self, ip, status):
+
+        self.ip = ip
+        self.status = status
