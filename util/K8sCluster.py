@@ -42,13 +42,12 @@ class K8sCluster:
 
     def services(self, label: str, target: str):
 
-        items = self.rawServices(label)
+        return self._toMap(label, self.rawServices, lambda i: self._apiResponseToService(i, target))
 
-        for item in items:
-            item.kind = "Service"  # unfortunately, it's returned as None
+    def _apiResponseToService(self, i, target):
 
-        return self._toMap(label, self.rawServices,
-                           lambda i: K8sService(label=None, yml=[item.to_dict()]).toService(self._ip, target))
+        i.kind = "Service"  # unfortunately, it's returned as None
+        return K8sService(label=None, yml=[i.to_dict()]).toService(self._ip, target)
 
     def deployments(self, label=None):
 
