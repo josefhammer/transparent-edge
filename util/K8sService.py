@@ -58,6 +58,7 @@ class K8sService(object):
             return None
 
         service = Service(vAddr=None, label=self.label)
+
         service.vAddr = SocketAddr(IPAddr.get_ipv4_by_hostname(service.domain())[0], self.port)
 
         # Return service only if no instance is known/available
@@ -107,19 +108,19 @@ class K8sService(object):
 
         # read label (if available)
         #
-        self.label = yml.get("metadata", {}).get('labels', {}).get(K8sService.LABEL_NAME, self.label)
+        self.label = self._get(yml, "metadata", "labels", {}).get(K8sService.LABEL_NAME, self.label)
 
         # read type (if available)
         #
-        self.type = yml.get("spec", {}).get('type')  # e.g. "LoadBalancer"
+        self.type = self._get(yml, "spec", 'type')  # e.g. "LoadBalancer"
 
         # read clusterIP (if available)
         #
-        self.clusterIP = yml.get("spec", {}).get('cluster_ip')  # 'clusterIP' when exported via kubectl
+        self.clusterIP = self._get(yml, "spec", 'cluster_ip')  # 'clusterIP' when exported via kubectl
 
         # read the service port (and node_port if available)
         #
-        ports = yml.get("spec", {}).get("ports", [])
+        ports = self._get(yml, "spec", "ports", [])
         for port in ports:
             self.port = port.get("port")
             self.nodePort = port.get('node_port')  # 'nodePort' when exported via kubectl
@@ -131,6 +132,16 @@ class K8sService(object):
 
             # REVIEW currently, we use only one port (could be more, though; in particular with node ports)
             break
+
+    def _get(self, yml, name1, name2, default=None):
+        """
+        Returns `default` if yml[`name1`][`name2`] does not exist _OR_ **if value is None**.
+        """
+        value = yml.get(name1, {})
+        if value is None:
+            return {}
+        value = value.get(name2, {})
+        return default if value is None else value
 
     def _loadYaml(self, filename):
 
