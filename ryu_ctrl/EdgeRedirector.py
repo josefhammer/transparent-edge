@@ -40,7 +40,7 @@ class EdgeRedirector:
 
         # watch both userTable and edgeTable (the latter to proactively install the flows to speed things up)
         #
-        if not (of.msg.table_id == self.table or of.isEdge):  # of.isEdge is set by EdgeRedirector
+        if not (of.msg.table_id == self.table or of.isEdge):  # of.isEdge is set by EdgeDetector
             return  # not our business
 
         src = of.src

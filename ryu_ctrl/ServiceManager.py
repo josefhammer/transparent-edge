@@ -25,17 +25,15 @@ class ServiceManager:
                  log,
                  clusterGlob: str,
                  servicesGlob: str,
-                 useGlobalServiceMap: bool = False,
+                 servicesDir: str,
                  target: str = "pod"):
 
         self.ctx = context
         self.log = log
-        self._useGlobalServiceMap = useGlobalServiceMap
+        self._servicesDir = servicesDir
         self._target = target
 
-        self.log.debug("useGlobalServiceMap=" + str(useGlobalServiceMap))
-
-        self._services: TinyServiceTrie = TinyServiceTrie(keysOnly=not useGlobalServiceMap)  # SocketAddr
+        self._services: TinyServiceTrie = TinyServiceTrie()
 
         self.loadClusters(clusterGlob)
         self.loadServices(servicesGlob)
@@ -124,14 +122,6 @@ class ServiceManager:
             self.log.info("ServiceID " + str(svc))
             return svc
 
-        # ... or get the existing one
-        elif self._useGlobalServiceMap:
-            service = self._services[svc.vAddr]
-            if service.label != svc.label:
-                print("service=", service, "svc=", svc)
-            assert service.label == svc.label  # same service in all edges
-            return service  # single instance to save memory
-
     def _addServiceInstance(self, svcInstance, edge):
 
         # If we route directly to the pod, we need to replace ClusterIP with PodIP
@@ -155,7 +145,7 @@ class ServiceManager:
     def deployService(self, edge: Edge, vAddr: SocketAddr):
 
         service = self._services.get(vAddr)
-        assert (service)
+        assert (service and service.label)
 
         perf = PerfCounter()
         svc = edge.cluster.initService(service.label, self._filenameFromServiceLabel(service.label))

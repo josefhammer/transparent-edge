@@ -38,8 +38,8 @@ class EdgeController:
         #
         self._clusterGlob = "/var/emu/*-k8s.json"  # default value
         self._servicesGlob = "/var/emu/services/*.yml"  # default value
+        self._servicesDir = "/var/emu/svcMngr/"  # default value
         self._switchConfig = None
-        self._useGlobalServiceMap = False
         self._target = "pod"
         self._useUniqueMask = True
         self._logPerformance = False
@@ -55,7 +55,7 @@ class EdgeController:
             self.logger("ServiceMngr"),
             clusterGlob=self._clusterGlob,
             servicesGlob=self._servicesGlob,
-            useGlobalServiceMap=self._useGlobalServiceMap,
+            servicesDir=self._servicesDir,
             target=self._target)
 
         self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self.flowIdleTimeout * 2)
@@ -190,8 +190,8 @@ class EdgeController:
 
             self._clusterGlob = cfg.get('clusterGlob', self._clusterGlob)
             self._servicesGlob = cfg.get('servicesGlob', self._servicesGlob)
+            self._servicesDir = cfg.get('servicesDir', self._servicesDir)
             self._target = cfg.get('target', self._target)
-            self._useGlobalServiceMap = cfg.get('useGlobalServiceMap', self._useGlobalServiceMap)
             self._useUniqueMask = cfg.get('useUniqueMask', self._useUniqueMask)
             self._logPerformance = cfg.get('logPerformance', self._logPerformance)
 
