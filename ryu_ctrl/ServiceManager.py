@@ -74,15 +74,15 @@ class ServiceManager:
         files = glob.glob(servicesGlob)
 
         for filename in files:
-            self._addService(self._loadService(filename), filename)
+            service = self._loadService(filename)
+            self._addService(service.toService(edgeIP=None, target=None), filename)
 
-    def _loadService(self, filename, isSymlink=False) -> Service:
+    def _loadService(self, filename, isSymlink=False):
 
         if isSymlink:  # symlinks created by us do not contain the label (but do not resolve other symlinks)
             filename = os.readlink(filename)
 
-        service = Cluster.initService(self._labelFromServiceFilename(filename), filename)
-        return service.toService(edgeIP=None, target=self._target)
+        return Cluster.initService(self._labelFromServiceFilename(filename), filename)
 
     def _labelFromServiceFilename(self, filename) -> str:  # REVIEW Move to Service or somewhere else?
 
