@@ -1,7 +1,7 @@
 from unicodedata import name
 
 from .Context import Context
-from util.K8sCluster import K8sCluster
+from util.Cluster import Cluster
 from util.EdgeTools import Edge
 from util.SocketAddr import SocketAddr
 from util.Service import Deployment, ServiceInstance, Service
@@ -66,36 +66,27 @@ class ServiceManager:
                     switch = dpid
                     break
 
-            if switch is not None:  # included in the current configuration?
-
-                # NOTE: designed to allow different types of edge clusters, not only K8s
-                #
-                if clusterType == "k8s":
-                    edge.cluster = K8sCluster(apiServer, filename)
+            if not switch is None:  # included in the current configuration?
+                edge.cluster = Cluster.init(clusterType, apiServer, filename)
 
     def loadServices(self, servicesGlob):
 
         files = glob.glob(servicesGlob)
 
         for filename in files:
-            #
-            # REVIEW Currently, only K8s Yaml files supported.
-            #
-            service = K8sCluster.initService(self._labelFromServiceFilename(filename), filename)
-            svc = service.toService(edgeIP=None, target=self._target)
+            self._addService(self._loadService(filename), filename)
 
-            self._addService(svc)
+    def _loadService(self, filename, isSymlink=False) -> Service:
+
+        if isSymlink:  # symlinks created by us do not contain the label (but do not resolve other symlinks)
+            filename = os.readlink(filename)
+
+        service = Cluster.initService(self._labelFromServiceFilename(filename), filename)
+        return service.toService(edgeIP=None, target=self._target)
 
     def _labelFromServiceFilename(self, filename) -> str:  # REVIEW Move to Service or somewhere else?
 
         return os.path.splitext(os.path.basename(filename))[0]
-
-    def _filenameFromServiceLabel(self, label) -> str:  # REVIEW Move to Service or somewhere else?
-
-        # REVIEW Does not support files in subdirectories or different extensions!! (i.e., the glob pattern)
-        # Store filename instead of label? But: Initialization from K8s?
-        #
-        return os.path.join("/var/emu/services/", label + ".yml")
 
     def initServices(self, edge: Edge):
         """
@@ -106,19 +97,35 @@ class ServiceManager:
 
         for svcList in svcInstances.values():
             for svcInstance in svcList:
-                if isinstance(svcInstance, ServiceInstance):  # might just be Service
+                if isinstance(svcInstance, ServiceInstance):
+                    assert svcInstance.service.label
 
-                    label = svcInstance.service.label
-                    svcInstance.service = self._addService(svcInstance.service)
-                    svcInstance.deployment = deployments.get(label, [Deployment()])[0]
-                    self._addServiceInstance(svcInstance, edge)
+                    # we only care about running instances of services we know about
+                    #
+                    svc = svcInstance.service
+                    if svc.vAddr and self._services.contains(svc.vAddr):
 
-    def _addService(self, svc: Service):
+                        svcInstance.deployment = deployments.get(svc.label, [Deployment()])[0]
+                        self._addServiceInstance(svcInstance, edge)
+
+    def _serviceFilename(self, vAddr: SocketAddr):
+
+        return os.path.join(self._servicesDir, str(vAddr) + '.yml')
+
+    def _addService(self, svc: Service, svcFilename: str = None):
 
         # Add service to global ServiceTrie
         #
         if not self._services.contains(svc.vAddr):
-            self._services.set(svc.vAddr, svc)
+            self._services.set(svc.vAddr)
+
+            # create a symlink to the original file to be able to load the service details at any time
+            #
+            assert svcFilename is not None
+            filename = self._serviceFilename(svc.vAddr)
+            tempfilename = filename + ".tmp"
+            os.symlink(svcFilename, tempfilename)  # create symlink with tempname first in case it exists already
+            os.replace(tempfilename, filename)  # replace vs remove first avoids a race condition
             self.log.info("ServiceID " + str(svc))
             return svc
 
@@ -135,7 +142,7 @@ class ServiceManager:
 
             svcInstance.eAddr.ip = IPAddr(pods[0].ip)
 
-        # Add ServiceInstance to edge (register with IP addresses for both directions if different)
+        # Add ServiceInstance to edge
         #
         edge.vServices[svcInstance.service.vAddr] = svcInstance  # REVIEW Requires to have a single instance only
         edge.eServices[svcInstance.eAddr] = svcInstance
@@ -144,14 +151,11 @@ class ServiceManager:
 
     def deployService(self, edge: Edge, vAddr: SocketAddr):
 
-        service = self._services.get(vAddr)
-        assert (service and service.label)
+        service = self._loadService(self._serviceFilename(vAddr), isSymlink=True)
+        service.annotate()
 
         perf = PerfCounter()
-        svc = edge.cluster.initService(service.label, self._filenameFromServiceLabel(service.label))
-        svc.annotate()
-
-        svcInstance = edge.cluster.deployService(svc, self._target)
+        svcInstance = edge.cluster.deployService(service, self._target)
 
         if svcInstance is not None:
             self._addServiceInstance(svcInstance, edge)

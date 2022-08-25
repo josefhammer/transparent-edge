@@ -42,13 +42,6 @@ class K8sCluster:
         self._k8s = client.CoreV1Api(self._apiClient)
         self._k8sApps = client.AppsV1Api(self._apiClient)
 
-    @staticmethod
-    def initService(label, filename=None, yml: dict = None):
-        """
-        Factory method.
-        """
-        return K8sService(label, filename, yml)
-
     def deployService(self, service: K8sService, target: str):  # REVIEW Remove target param?
 
         assert (service and service.yaml)
