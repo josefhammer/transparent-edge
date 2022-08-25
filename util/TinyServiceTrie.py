@@ -6,8 +6,8 @@ from TinyTricia import TinyTricia
 
 
 class TinyServiceTrie(object):
-    def __init__(self, numBits=48, keysOnly=False):
-        self._trie = TinyTricia(numBits, keysOnly=keysOnly)
+    def __init__(self, numBits=48):
+        self._trie = TinyTricia(numBits)
 
     def set(self, addr: SocketAddr, svc: Service = None):
         self._trie.set(addr.ip.ip << 16 | addr.port, svc)
