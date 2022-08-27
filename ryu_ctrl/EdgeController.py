@@ -32,6 +32,7 @@ class EdgeController:
         self.log.info(datetime.now().strftime("%Y-%m-%d %H:%M"))
 
         self.forwarders = {}
+        self.ofPerSwitch = {}
         self.ctx = Context()
 
         # Load configuration
@@ -59,7 +60,7 @@ class EdgeController:
         self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self.flowIdleTimeout * 2)
 
         for dpid, edge in self.ctx.edges.items():
-            self.log.info("Switch {} -> {} {}".format(dpid, edge.ip, edge.serviceCidr))
+            self.log.info("Switch {} -> {}".format(dpid, edge))
 
     def connect(self, of: OpenFlow):
 
@@ -132,6 +133,9 @@ class EdgeController:
 
     def connected(self, of: OpenFlow, switch):
 
+        # we need to temporarily store the OpenFlow object
+        #
+        self.ofPerSwitch[of.dpid] = of
         self.ctx.switches[of.dpid] = switch
 
         switchCfg = self._switchConfig.get(str(of.dpid.asShortInt()))
@@ -140,20 +144,30 @@ class EdgeController:
 
         self.log.info("Added Switch {}: {}".format(of.dpid, switch))
 
-        for fwd in self.forwarders[of.dpid]:
-            fwd.connected(of)
-
-        # get data about all services from the attached cluster
+        # check if all switches are connected already
         #
-        edge = self.ctx.edges.get(of.dpid)
-        if edge and edge.cluster:
-            self.ctx.serviceMngr.initServices(edge)
+        if not len([dpid for (dpid, value) in self.ctx.switches.items() if value == None]):
+            #
+            # Now all forwarders should be able to retrieve responses for their network requests.
+            # Otherwise, an intermediate switch might not be able yet to forward them correctly.
+            #
+            for dpid in self.ctx.switches:
+                for fwd in self.forwarders[dpid]:
+                    fwd.connected(self.ofPerSwitch[dpid])
+            self.ofPerSwitch = {}  # not required anymore
 
-        self.log.info("")
-        self.log.info("")
-        self.log.info("**** {} fully connected. ****".format(of.dpid))
-        self.log.info("")
-        self.log.info("")
+            # get data about all services from the attached clusters
+            #
+            for dpid in self.ctx.switches:
+                edge = self.ctx.edges.get(dpid)
+                if edge and edge.cluster:
+                    self.ctx.serviceMngr.initServices(edge)
+
+            self.log.info("")
+            self.log.info("")
+            self.log.info("**** Fully connected. ****")
+            self.log.info("")
+            self.log.info("")
 
     def packetIn(self, of: OpenFlow):
 
@@ -195,5 +209,7 @@ class EdgeController:
             for dpid, switch in cfg['switches'].items():
 
                 dpid = DPID(dpid)
+                self.ctx.switches[dpid] = None  # not connected yet
+
                 for edge in switch['edges']:
                     self.ctx.edges[dpid] = Edge(edge['ip'], dpid, edge.get('target'), edge['serviceCidr'])

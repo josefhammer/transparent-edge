@@ -115,7 +115,7 @@ class Switches(dict):
     def __setitem__(self, key, val):
         if not isinstance(key, DPID):
             key = DPID(key)
-        if not isinstance(val, Switch):
+        if val is not None and not isinstance(val, Switch):
             val = Switch(val)
         dict.__setitem__(self, key, val)
 
