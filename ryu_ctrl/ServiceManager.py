@@ -20,18 +20,11 @@ class ServiceManager:
 
     # REVIEW Might have to be synchronized due to parallel access.
 
-    def __init__(self,
-                 context: Context,
-                 log,
-                 clusterGlob: str,
-                 servicesGlob: str,
-                 servicesDir: str,
-                 target: str = "pod"):
+    def __init__(self, context: Context, log, clusterGlob: str, servicesGlob: str, servicesDir: str):
 
         self.ctx = context
         self.log = log
         self._servicesDir = servicesDir
-        self._target = target
 
         self._services: TinyServiceTrie = TinyServiceTrie()
 
@@ -92,7 +85,7 @@ class ServiceManager:
         """
         Will be called after the switch connected. Before that, we may not be able to connect to the cluster.
         """
-        svcInstances = edge.cluster.services(None, self._target)
+        svcInstances = edge.cluster.services(None, edge.target)
         deployments = edge.cluster.deployments()
 
         for svcList in svcInstances.values():
@@ -133,7 +126,7 @@ class ServiceManager:
 
         # If we route directly to the pod, we need to replace ClusterIP with PodIP
         #
-        if self._target == "pod":
+        if edge.target == "pod":
             #
             # REVIEW Inefficient to ask twice or for every pod
             #
@@ -155,7 +148,7 @@ class ServiceManager:
         service.annotate()
 
         perf = PerfCounter()
-        svcInstance = edge.cluster.deployService(service, self._target)
+        svcInstance = edge.cluster.deployService(service, edge.target)
 
         if svcInstance is not None:
             self._addServiceInstance(svcInstance, edge)

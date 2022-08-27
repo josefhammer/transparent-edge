@@ -131,12 +131,13 @@ class Edge(object):
     Contains all the data for one edge location.
     """
 
-    def __init__(self, ip, dpid, serviceCidr=[]):
+    def __init__(self, ip, dpid, target: str, serviceCidr=[]):
 
         assert isinstance(serviceCidr, list)
 
         self.ip = IPAddr(ip)
         self.dpid = DPID(dpid)
+        self.target = "pod" if target is None else target  # pod | cluster | exposed
         self.serviceCidr = serviceCidr
         self.cluster = None
 
@@ -155,4 +156,4 @@ class Edge(object):
         return hash(self.ip)
 
     def __repr__(self):
-        return "{}".format(self.ip)
+        return "{}-{} {}".format(self.ip, self.target, self.serviceCidr)

@@ -40,7 +40,6 @@ class EdgeController:
         self._servicesGlob = "/var/emu/services/*.yml"  # default value
         self._servicesDir = "/var/emu/svcMngr/"  # default value
         self._switchConfig = None
-        self._target = "pod"
         self._useUniqueMask = True
         self._logPerformance = False
         self.loadConfig(os_getenv('EDGE_CONFIG'))
@@ -55,8 +54,7 @@ class EdgeController:
             self.logger("ServiceMngr"),
             clusterGlob=self._clusterGlob,
             servicesGlob=self._servicesGlob,
-            servicesDir=self._servicesDir,
-            target=self._target)
+            servicesDir=self._servicesDir)
 
         self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self.flowIdleTimeout * 2)
 
@@ -191,7 +189,6 @@ class EdgeController:
             self._clusterGlob = cfg.get('clusterGlob', self._clusterGlob)
             self._servicesGlob = cfg.get('servicesGlob', self._servicesGlob)
             self._servicesDir = cfg.get('servicesDir', self._servicesDir)
-            self._target = cfg.get('target', self._target)
             self._useUniqueMask = cfg.get('useUniqueMask', self._useUniqueMask)
             self._logPerformance = cfg.get('logPerformance', self._logPerformance)
 
@@ -199,4 +196,4 @@ class EdgeController:
 
                 dpid = DPID(dpid)
                 for edge in switch['edges']:
-                    self.ctx.edges[dpid] = Edge(edge['ip'], dpid, edge['serviceCidr'])
+                    self.ctx.edges[dpid] = Edge(edge['ip'], dpid, edge.get('target'), edge['serviceCidr'])
