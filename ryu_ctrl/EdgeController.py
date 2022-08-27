@@ -6,7 +6,6 @@ from .L2TableForwarder import L2TableForwarder
 from .ServiceManager import ServiceManager
 from .EdgeRedirector import EdgeRedirector
 from .Context import Context
-from .ProximityScheduler import ProximityScheduler
 
 from util.RyuOpenFlow import OpenFlow
 from util.RyuDPID import DPID
@@ -44,6 +43,8 @@ class EdgeController:
         self._switchConfig = None
         self._useUniqueMask = True
         self._logPerformance = False
+        self._scheduler = "ryu_ctrl.ProximityScheduler.ProximityScheduler:ProxScheduler"  # default value
+
         self.loadConfig(os_getenv('EDGE_CONFIG'))
 
         logLevel = os_getenv('EDGE_LOGLEVEL')
@@ -58,9 +59,15 @@ class EdgeController:
             servicesGlob=self._servicesGlob,
             servicesDir=self._servicesDir)
 
-        self.scheduler = ProximityScheduler(self.logger("ProxScheduler"))
+        # dynamically load scheduler
+        #
+        moduleName, logName = self._scheduler.split(":")
+        moduleName, className = moduleName.rsplit(".", 1)
+        schedulerModule = __import__(moduleName, fromlist=[className])
+        scheduler = getattr(schedulerModule, className)
 
-        self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self.scheduler, self.flowIdleTimeout * 2)
+        self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), scheduler(self.logger(logName)),
+                                         self.flowIdleTimeout * 2)
 
         for dpid, edge in self.ctx.edges.items():
             self.log.info("Switch {} -> {}".format(dpid, edge))
@@ -208,6 +215,7 @@ class EdgeController:
             self._servicesDir = cfg.get('servicesDir', self._servicesDir)
             self._useUniqueMask = cfg.get('useUniqueMask', self._useUniqueMask)
             self._logPerformance = cfg.get('logPerformance', self._logPerformance)
+            self._scheduler = cfg.get('scheduler', self._scheduler)
 
             for dpid, switch in cfg['switches'].items():
 
