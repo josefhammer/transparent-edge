@@ -11,9 +11,23 @@
                     ]
                 }
             ]
+        },
+        "3": {
+            "gateway": "10.0.0.1",
+            "edges": [
+                {
+                    "ip": "10.0.0.1",
+                    "target": "cluster",
+                    "serviceCidr": [
+                        "10.244.2.0/24",
+                        "172.16.0.0/12",
+                        "10.96.0.0/12"
+                    ]
+                }
+            ]
         }
     },
-    "arpSrcMac": "02:00:00:00:00:03",
+    "arpSrcMac": "02:00:00:00:00:ff",
     "flowIdleTimeout": 5,
     "useUniqueMask": true
 }

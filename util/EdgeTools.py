@@ -104,7 +104,8 @@ class Switch(object):
         return hash(self.mac)
 
     def __repr__(self):
-        return ", ".join(["{}={}".format(port.name.decode('UTF-8'), port.hw_addr) for port in self.ports[0:]])
+        return ", ".join(["{}={}".format(port.name.decode('UTF-8'), port.hw_addr)
+                          for port in self.ports[0:]]) + " gateway=" + str(self.gateway)
 
 
 class Switches(dict):
