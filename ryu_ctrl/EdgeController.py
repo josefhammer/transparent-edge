@@ -6,6 +6,7 @@ from .L2TableForwarder import L2TableForwarder
 from .ServiceManager import ServiceManager
 from .EdgeRedirector import EdgeRedirector
 from .Context import Context
+from .ProximityScheduler import ProximityScheduler
 
 from util.RyuOpenFlow import OpenFlow
 from util.RyuDPID import DPID
@@ -57,7 +58,9 @@ class EdgeController:
             servicesGlob=self._servicesGlob,
             servicesDir=self._servicesDir)
 
-        self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self.flowIdleTimeout * 2)
+        self.scheduler = ProximityScheduler(self.logger("ProxScheduler"))
+
+        self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self.scheduler, self.flowIdleTimeout * 2)
 
         for dpid, edge in self.ctx.edges.items():
             self.log.info("Switch {} -> {}".format(dpid, edge))

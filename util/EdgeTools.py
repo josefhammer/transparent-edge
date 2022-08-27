@@ -137,7 +137,7 @@ class Edge(object):
         assert isinstance(serviceCidr, list)
 
         self.ip = IPAddr(ip)
-        self.dpid = DPID(dpid)
+        self.dpid = DPID(dpid)  # each edge is connected to a single switch
         self.target = "pod" if target is None else target  # pod | cluster | exposed
         self.serviceCidr = serviceCidr
         self.cluster = None

@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 from util.MemoryEntry import MemoryEntry, Memory
 from util.SocketAddr import SocketAddr
+from util.Service import ServiceInstance
+from util.EdgeTools import Edge
 from util.RyuDPID import DPID
 from .Context import Context
 
@@ -11,10 +15,11 @@ class EdgeDispatcher:
 
     # REVIEW Might have to be synchronized due to parallel access.
 
-    def __init__(self, context: Context, log, memIdleTimeout=10):
+    def __init__(self, context: Context, log, scheduler, memIdleTimeout=10):
 
         self.ctx = context
         self.log = log
+        self.scheduler = scheduler
 
         # Remember the locations of the clients to detect client movement
         self.locations = {}
@@ -39,21 +44,24 @@ class EdgeDispatcher:
             # remember vMac
             self.ctx.switches[dpid].vMac = dst.mac
 
-            services = self.availServers(dpid, dst)
-            if not services:
+            # REVIEW: If edge is different, we would need to route it to the other switch first (destMac = switch).
 
-                clusters = self.availClusters(dpid)
+            svc, edges = self.availServers(dpid, dst)  # running instance available?
+            edge, hasRunningInstance = self.scheduler.schedule(dpid, svc.service, edges)
 
-                (edge, switch) = clusters[0]
+            if not hasRunningInstance:  # try to deploy an instance
+
+                if edge is None:
+                    log.warn("No server found for service {} at switch {}.".format(dst, dpid))
+                    return None
+
                 svc = self.ctx.serviceMngr.deployService(edge, dst)
 
                 if not svc:
-                    log.warn("No server found for service {} at switch {}.".format(dst, dpid))
+                    log.warn("Could not instantiate service {} at edge {}.".format(dst, edge.ip))
                     return None
-            else:
-                (svc, switch) = services[0]
 
-            edge = SocketAddr(svc.eAddr.ip, svc.eAddr.port, self.ctx.hosts[switch][svc.edgeIP].mac)
+            edge = SocketAddr(svc.eAddr.ip, svc.eAddr.port, self.ctx.hosts[edge.dpid][svc.edgeIP].mac)
 
             entry = MemoryEntry(src, dst, edge)
             self.memory.add(entry)
@@ -107,38 +115,33 @@ class EdgeDispatcher:
         for ip in self.locations:
             self.log.info("Location: {} @ {}".format(ip, self.locations[ip]))
 
-    def availServers(self, dpid, addr: SocketAddr):
+    def availServers(self, dpid, addr: SocketAddr) -> tuple[ServiceInstance, list[Edge, bool]]:
 
         log = self.log
         result = []
+        svcInstance = None
 
         for switch, edge in self.ctx.edges.items():
 
-            # find a server that hosts the required service
+            # find a server that hosts (or may host) the required service
             #
             svc = edge.vServices.get(addr)
-            if svc is not None:
+            if svc is not None:  # we found a running instance
 
-                if svc.edgeIP not in self.ctx.hosts[switch]:
+                if svcInstance is None:  # if we have an instance, return it
+                    svcInstance = svc
+
+                if svc.edgeIP in self.ctx.hosts[switch]:
+                    result.append((edge, True))
+                else:
                     log.warn("Server {} not available at switch {}".format(svc.edgeIP, dpid))
                     log.debug(self.ctx.hosts)
-                else:
-                    self._addServer(switch, dpid, result, svc)
-        return result
+            else:
+                if edge.cluster and edge.cluster._ip and edge.cluster._ip in self.ctx.hosts[switch]:
+                    result.append((edge, False))
 
-    def availClusters(self, dpid):
+                elif edge.cluster and edge.cluster._ip:
+                    log.warn("Cluster {} not available at switch {}".format(edge.cluster._ip, dpid))
+                    log.debug(self.ctx.hosts)
 
-        result = []
-        for switch, edge in self.ctx.edges.items():
-
-            if edge.cluster and edge.cluster._ip and edge.cluster._ip in self.ctx.hosts[switch]:
-
-                self._addServer(switch, dpid, result, edge)
-        return result
-
-    def _addServer(self, switch, dpid, servers, item):
-
-        if switch == dpid:
-            servers.insert(0, (item, switch))  # preference for local server
-        else:
-            servers.append((item, switch))
+        return svcInstance, result
