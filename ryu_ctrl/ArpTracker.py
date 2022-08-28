@@ -16,10 +16,18 @@ class ArpTracker(object):
     Does NOT clear the table!
     """
 
-    def __init__(self, context: Context, log, tableID, srcMac, installFlow=False, fwdTable=None, flowPriority=3):
+    def __init__(self,
+                 context: Context,
+                 log,
+                 hostTable: HostTable,
+                 tableID,
+                 srcMac,
+                 installFlow=False,
+                 fwdTable=None,
+                 flowPriority=3):
 
         self.ctx = context
-        self.hosts = context.hosts
+        self.hosts = hostTable
         self.log = log
         self.table = tableID
         self.srcMac = srcMac
@@ -29,12 +37,8 @@ class ArpTracker(object):
 
     def connect(self, of: OpenFlow):
 
-        dpid = of.dpid
         log = self.log
         log.info("Connected.")
-
-        if dpid not in self.hosts:
-            self.hosts[dpid] = HostTable()
 
         # Install default flow to send ARP packets to the controller.
         #
@@ -76,7 +80,7 @@ class ArpTracker(object):
             #
             edge = self.ctx.edges.get(of.dpid)
             if edge is not None and (edge.ip == switch.gateway):
-                self.setArp(self.log, dpid=of.dpid, eth_src=switch.mac, ip_src=switch.gateway)
+                self._setArp(self.log, dpid=of.dpid, eth_src=switch.mac, ip_src=switch.gateway)
 
     def packetIn(self, of: OpenFlow):
         # Note: arp.hwsrc is not necessarily equal to ethernet.src
@@ -99,14 +103,14 @@ class ArpTracker(object):
         if arp.proto == of.ETH_TYPE_IP:
             if arp.hwtype == of.ARP_HW_TYPE_ETHERNET:
                 if arp.src_ip != 0:
-                    self.setArp(log, dpid=of.dpid, eth_src=arp.src_mac, ip_src=arp.src_ip)
+                    self._setArp(log, dpid=of.dpid, eth_src=arp.src_mac, ip_src=arp.src_ip)
 
-    def setArp(self, log, dpid, eth_src, ip_src):
+    def _setArp(self, log, dpid, eth_src, ip_src):
         #
         # Adds or updates an Arp entry
         #
         ip_src = IPAddr(ip_src)
-        swHosts = self.hosts[dpid]
+        swHosts = self.hosts
         newHost = Host(ip_src, eth_src)
 
         if ip_src not in swHosts:
@@ -121,7 +125,7 @@ class ArpTracker(object):
             else:
                 log.debug("*** Refreshed %s", old)
 
-        self.hosts[dpid][ip_src] = newHost
+        swHosts[ip_src] = newHost
 
-        for _, host in self.hosts[dpid].items():
+        for _, host in swHosts.items():
             log.debug("({}) {}".format(dpid, host))

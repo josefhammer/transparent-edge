@@ -5,7 +5,7 @@ Provides the context for the main components.
 """
 from __future__ import annotations
 
-from util.EdgeTools import SwitchTable, Edge
+from util.EdgeTools import Edge
 from util.RyuDPID import DPID
 
 
@@ -16,5 +16,4 @@ class Context(object):
 
     def __init__(self):
         self.serviceMngr = None
-        self.hosts = SwitchTable()
         self.edges: dict[DPID, Edge] = {}  # dict: DPID -> Edge

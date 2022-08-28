@@ -3,7 +3,7 @@ from __future__ import annotations
 from util.MemoryEntry import MemoryEntry, Memory
 from util.SocketAddr import SocketAddr
 from util.Service import ServiceInstance
-from util.EdgeTools import Edge, Switch
+from util.EdgeTools import Edge, Switch, SwitchTable
 from util.RyuDPID import DPID
 from .Context import Context
 
@@ -15,11 +15,12 @@ class EdgeDispatcher:
 
     # REVIEW Might have to be synchronized due to parallel access.
 
-    def __init__(self, context: Context, log, scheduler, memIdleTimeout=10):
+    def __init__(self, context: Context, log, switchTable: SwitchTable, scheduler, memIdleTimeout=10):
 
         self.ctx = context
         self.log = log
-        self.scheduler = scheduler
+        self._hosts = switchTable
+        self._scheduler = scheduler
 
         # Remember the locations of the clients to detect client movement
         self.locations = {}
@@ -48,7 +49,7 @@ class EdgeDispatcher:
 
             dpid = switch.dpid
             svc, edges = self.availServers(dpid, dst)  # running instance available?
-            edge, hasRunningInstance = self.scheduler.schedule(dpid, svc.service, edges)
+            edge, hasRunningInstance = self._scheduler.schedule(dpid, svc.service, edges)
 
             if not hasRunningInstance:  # try to deploy an instance
 
@@ -62,7 +63,7 @@ class EdgeDispatcher:
                     log.warn("Could not instantiate service {} at edge {}.".format(dst, edge.ip))
                     return None
 
-            edge = SocketAddr(svc.eAddr.ip, svc.eAddr.port, self.ctx.hosts[edge.dpid][svc.edgeIP].mac)
+            edge = SocketAddr(svc.eAddr.ip, svc.eAddr.port, self._hosts[edge.dpid][svc.edgeIP].mac)
 
             entry = MemoryEntry(src, dst, edge)
             self.memory.add(entry)
@@ -132,17 +133,17 @@ class EdgeDispatcher:
                 if svcInstance is None:  # if we have an instance, return it
                     svcInstance = svc
 
-                if svc.edgeIP in self.ctx.hosts[switch]:
+                if svc.edgeIP in self._hosts[switch]:
                     result.append((edge, True))
                 else:
                     log.warn("Server {} not available at switch {}".format(svc.edgeIP, dpid))
-                    log.debug(self.ctx.hosts)
+                    log.debug(self._hosts)
             else:
-                if edge.cluster and edge.cluster._ip and edge.cluster._ip in self.ctx.hosts[switch]:
+                if edge.cluster and edge.cluster._ip and edge.cluster._ip in self._hosts[switch]:
                     result.append((edge, False))
 
                 elif edge.cluster and edge.cluster._ip:
                     log.warn("Cluster {} not available at switch {}".format(edge.cluster._ip, dpid))
-                    log.debug(self.ctx.hosts)
+                    log.debug(self._hosts)
 
         return svcInstance, result

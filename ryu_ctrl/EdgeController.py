@@ -10,7 +10,7 @@ from .Context import Context
 from util.RyuOpenFlow import OpenFlow
 from util.RyuDPID import DPID
 
-from util.EdgeTools import Edge, Switches
+from util.EdgeTools import Edge, Switches, SwitchTable, HostTable
 from util.IPAddr import IPAddr
 from util.Performance import PerfCounter
 
@@ -35,6 +35,7 @@ class EdgeController:
         self.ofPerSwitch = {}
         self.ctx = Context()
         self._switches = Switches()
+        self._hosts = SwitchTable()
 
         # Load configuration
         #
@@ -67,8 +68,8 @@ class EdgeController:
         schedulerModule = __import__(moduleName, fromlist=[className])
         scheduler = getattr(schedulerModule, className)
 
-        self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), scheduler(self.logger(logName)),
-                                         self.flowIdleTimeout * 2)
+        self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self._hosts,
+                                         scheduler(self.logger(logName)), self.flowIdleTimeout * 2)
 
         for dpid, edge in self.ctx.edges.items():
             self.log.info("Switch {} -> {}".format(dpid, edge))
@@ -89,6 +90,10 @@ class EdgeController:
 
         else:
             self.log.info("{} connected.".format(dpid))
+
+            hostTable = self._hosts.get(dpid)
+            if hostTable is None:
+                self._hosts[dpid] = hostTable = HostTable()
 
             # OpenFlow: Resubmit (gotoTable) is only possible with ascending table IDs!
             #
@@ -127,6 +132,7 @@ class EdgeController:
                 ArpTracker(
                     self.ctx,
                     self.logger("ArpTracker", dpid),
+                    hostTable,
                     preSelectTable,
                     srcMac=self.arpSrcMac,
                     installFlow=True,
