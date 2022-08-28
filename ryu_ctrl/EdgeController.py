@@ -10,7 +10,7 @@ from .Context import Context
 from util.RyuOpenFlow import OpenFlow
 from util.RyuDPID import DPID
 
-from util.EdgeTools import Edge
+from util.EdgeTools import Edge, Switches
 from util.IPAddr import IPAddr
 from util.Performance import PerfCounter
 
@@ -34,6 +34,7 @@ class EdgeController:
         self.forwarders = {}
         self.ofPerSwitch = {}
         self.ctx = Context()
+        self._switches = Switches()
 
         # Load configuration
         #
@@ -143,10 +144,12 @@ class EdgeController:
 
     def connected(self, of: OpenFlow, switch):
 
+        self._switches[of.dpid] = switch
+        of.switch = switch  # pass it to all modules
+
         # we need to temporarily store the OpenFlow object
         #
         self.ofPerSwitch[of.dpid] = of
-        self.ctx.switches[of.dpid] = switch
 
         switchCfg = self._switchConfig.get(str(of.dpid.asShortInt()))
         if switchCfg:
@@ -156,19 +159,19 @@ class EdgeController:
 
         # check if all switches are connected already
         #
-        if not len([dpid for (dpid, value) in self.ctx.switches.items() if value == None]):
+        if not len([dpid for (dpid, value) in self._switches.items() if value == None]):
             #
             # Now all forwarders should be able to retrieve responses for their network requests.
             # Otherwise, an intermediate switch might not be able yet to forward them correctly.
             #
-            for dpid in self.ctx.switches:
+            for dpid in self._switches:
                 for fwd in self.forwarders[dpid]:
                     fwd.connected(self.ofPerSwitch[dpid])
             self.ofPerSwitch = {}  # not required anymore
 
             # get data about all services from the attached clusters
             #
-            for dpid in self.ctx.switches:
+            for dpid in self._switches:
                 edge = self.ctx.edges.get(dpid)
                 if edge and edge.cluster:
                     self.ctx.serviceMngr.initServices(edge)
@@ -182,6 +185,8 @@ class EdgeController:
     def packetIn(self, of: OpenFlow):
 
         perf = PerfCounter()
+        of.switch = self._switches[of.dpid]  # look it up only once per request (not in every module)
+
         for fwd in self.forwarders[of.dpid]:
             fwd.packetIn(of)
             perf.lap()
@@ -220,7 +225,7 @@ class EdgeController:
             for dpid, switch in cfg['switches'].items():
 
                 dpid = DPID(dpid)
-                self.ctx.switches[dpid] = None  # not connected yet
+                self._switches[dpid] = None  # not connected yet
 
                 for edge in switch['edges']:
                     self.ctx.edges[dpid] = Edge(edge['ip'], dpid, edge.get('target'), edge['serviceCidr'])

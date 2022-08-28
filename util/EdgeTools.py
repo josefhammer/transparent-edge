@@ -81,7 +81,8 @@ class Switch(object):
     thus it's not stored together with the Service.
     """
 
-    def __init__(self, ports):
+    def __init__(self, dpid, ports):
+        self.dpid = dpid
         self.name = ports[0].name.decode('UTF-8')
         self.mac = ports[0].hw_addr
         self.ports = ports

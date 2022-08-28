@@ -120,7 +120,6 @@ class EdgeDetector:
         if not of.msg.table_id == self.table:
             return  # not our business
 
-        dpid = of.dpid
         log = self.log
 
         src = of.src
@@ -143,7 +142,7 @@ class EdgeDetector:
 
             # do not proactively add a return flow here since (due to wildcards) one might exist already anyway
             #
-            outport = self.ctx.switches[dpid].portFor(dst.mac)
+            outport = of.switch.portFor(dst.mac)
             self.redirectDefault(of, self.defaultTrafficMatch(of, dst), outport)
 
     def defaultTrafficMatch(self, of: OpenFlow, dst: SocketAddr):

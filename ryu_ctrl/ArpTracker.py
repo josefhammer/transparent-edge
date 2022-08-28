@@ -53,7 +53,7 @@ class ArpTracker(object):
         # ATTENTION: We won't receive any ARP responses if we use our own MAC address as source!
         #
         srcMac = self.srcMac
-        switch = self.ctx.switches[of.dpid]
+        switch = of.switch
         assert (srcMac != switch.mac)
 
         # ARP request for all local edge servers we need to track

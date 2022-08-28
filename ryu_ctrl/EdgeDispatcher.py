@@ -3,7 +3,7 @@ from __future__ import annotations
 from util.MemoryEntry import MemoryEntry, Memory
 from util.SocketAddr import SocketAddr
 from util.Service import ServiceInstance
-from util.EdgeTools import Edge
+from util.EdgeTools import Edge, Switch
 from util.RyuDPID import DPID
 from .Context import Context
 
@@ -27,7 +27,7 @@ class EdgeDispatcher:
         # We remember where we directed flows so that if they start up again, we can send them to the same server.
         self.memory = Memory(memIdleTimeout)  # (srcip,dstip,srcport,dstport) -> MemoryEntry
 
-    def dispatch(self, dpid: DPID, src: SocketAddr, dst: SocketAddr):
+    def dispatch(self, switch: Switch, src: SocketAddr, dst: SocketAddr):
         """
         Find the ideal edge server for a given (virtual) ServiceID address.
 
@@ -42,10 +42,11 @@ class EdgeDispatcher:
         if entry is None:
 
             # remember vMac
-            self.ctx.switches[dpid].vMac = dst.mac
+            switch.vMac = dst.mac
 
             # REVIEW: If edge is different, we would need to route it to the other switch first (destMac = switch).
 
+            dpid = switch.dpid
             svc, edges = self.availServers(dpid, dst)  # running instance available?
             edge, hasRunningInstance = self.scheduler.schedule(dpid, svc.service, edges)
 
@@ -73,7 +74,7 @@ class EdgeDispatcher:
         assert (entry.edge.mac)
         return entry.edge
 
-    def findServiceID(self, dpid: DPID, src: SocketAddr, dst: SocketAddr):
+    def findServiceID(self, switch: Switch, src: SocketAddr, dst: SocketAddr):
         """
         Find the original (virtual) ServiceID address that the request went to.
 
@@ -87,9 +88,9 @@ class EdgeDispatcher:
 
         # REVIEW Could the vMac be different after migration??
         #
-        vMac = self.ctx.switches[dpid].vMac
+        vMac = switch.vMac
         if vMac != entry.dst.mac:
-            self.log.warn("vMac different: entry={} switch={} dpid={}".format(entry.dst.mac, vMac, dpid))
+            self.log.warn("vMac different: entry={} switch={} dpid={}".format(entry.dst.mac, vMac, switch.dpid))
             if vMac != None:
                 entry.dst.mac = vMac
 

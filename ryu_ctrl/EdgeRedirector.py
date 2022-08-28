@@ -59,7 +59,7 @@ class EdgeRedirector:
         # default forwarding (also for those cases where we could not select an edge flow)
         #
         self.log.debug("redirectDefault: {} -> {}".format(src, dst))
-        self.redirectDefault(of, src, dst, self.ctx.switches[of.dpid].portFor(dst.mac))
+        self.redirectDefault(of, src, dst, of.switch.portFor(dst.mac))
 
     def fwdToEdge(self, log, of: OpenFlow, packet: Packet, src: SocketAddr, dst: SocketAddr):
         #
@@ -67,7 +67,7 @@ class EdgeRedirector:
         #
         dpid = of.dpid
 
-        edge = self.dispatcher.dispatch(dpid, src, dst)
+        edge = self.dispatcher.dispatch(of.switch, src, dst)
         if edge is None:
             log.warn("No servers available for %s --> regular forwarding.", dst)
             return False
@@ -80,7 +80,7 @@ class EdgeRedirector:
         #
         match = of.Match().srcIP(src.ip).dstIP(dst.ip).dstPort(dst.port)  # no srcPort
 
-        outport = self.ctx.switches[of.dpid].portFor(edge.mac)
+        outport = of.switch.portFor(edge.mac)
 
         actions = of.Action().setUDP(packet.isUDP()).setDestination(
             edge.mac, edge.ip.ip, edge.port if edge.port != dst.port else None).outport(outport)
@@ -104,9 +104,7 @@ class EdgeRedirector:
         #
         # It's FROM one of our edge servers: Rewrite it BACK to the client
         #
-        dpid = of.dpid
-
-        serviceID = self.dispatcher.findServiceID(dpid, src, dst)
+        serviceID = self.dispatcher.findServiceID(of.switch, src, dst)
         if serviceID is None:
             # We either didn't install it, or we forgot about it.
             log.warn("No memory for %s/%s --> regular forwarding.", src, dst)
@@ -114,7 +112,7 @@ class EdgeRedirector:
 
         match = of.Match().srcIP(src.ip).srcPort(src.port).dstIP(dst.ip)  # no dstPort
 
-        outport = self.ctx.switches[of.dpid].portFor(of.src.mac if proactive else of.dst.mac)
+        outport = of.switch.portFor(of.src.mac if proactive else of.dst.mac)
 
         # ATTENTION: We must NOT go through a default forwarder afterwards (without faking the inport), since we would
         # confuse it with a fake combination of inport + vMac!! An L2 forwarder might learn the wrong out_port for vMac.

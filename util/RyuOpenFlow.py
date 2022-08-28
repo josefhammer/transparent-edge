@@ -8,6 +8,7 @@
 from util.RyuDPID import DPID
 from util.IPAddr import IPAddr
 from util.SocketAddr import SocketAddr
+from util.EdgeTools import Switch
 from ryu.lib.packet import packet as ryuPacket, ether_types, ethernet, arp, ipv4, tcp, udp, in_proto
 
 # IP protocol numbers: https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
@@ -30,7 +31,7 @@ class OpenFlow(object):
     IPPROTO_TCP = in_proto.IPPROTO_TCP  # 6
     IPPROTO_UDP = in_proto.IPPROTO_UDP  # 17
 
-    def __init__(self, event):
+    def __init__(self, event, switch: Switch = None):
         self.event = event
 
         self.msg = None
@@ -48,6 +49,7 @@ class OpenFlow(object):
         self.proto = self.dp.ofproto
         self.parser = self.dp.ofproto_parser
         self.dpid = DPID(self.dp.id)
+        self.switch: Switch = switch
 
         # Create SocketAddresses only once for all components
         #

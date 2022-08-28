@@ -13,7 +13,6 @@ class PortTracker:
 
     def __init__(self, context: Context, log):
 
-        self.switches = context.switches
         self.log = log
 
     def connect(self, of: OpenFlow):
@@ -31,7 +30,7 @@ class PortTracker:
             return  # ignore
 
         log = self.log
-        mac2port = self.switches[of.dpid].mac2port
+        mac2port = of.switch.mac2port
 
         inport = packet.inport()
         mac = of.src.mac
