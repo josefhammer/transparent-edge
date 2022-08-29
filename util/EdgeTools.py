@@ -81,14 +81,19 @@ class Switch(object):
     thus it's not stored together with the Service.
     """
 
-    def __init__(self, dpid, ports):
-        self.dpid = dpid
+    def __init__(self, dpid: DPID, gateway: IPAddr):
+        self.dpid: DPID = dpid
+        self.gateway: IPAddr = gateway
+        self.vMac = None  # the virtual MAC address to be used for ServiceIDs
+        self.mac2port = {}  # MAC -> outport
+        self.edges = []
+
+        self.name = self.mac = self.ports = None  # initialized in self.init(ports)
+
+    def init(self, ports):
         self.name = ports[0].name.decode('UTF-8')
         self.mac = ports[0].hw_addr
         self.ports = ports
-        self.vMac = None  # the virtual MAC address to be used for ServiceIDs
-        self.mac2port = {}  # MAC -> outport
-        self.gateway = None
 
     def portFor(self, mac):
         return self.mac2port.get(mac)

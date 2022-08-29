@@ -10,7 +10,7 @@ from .Context import Context
 from util.RyuOpenFlow import OpenFlow
 from util.RyuDPID import DPID
 
-from util.EdgeTools import Edge, Switches, SwitchTable, HostTable
+from util.EdgeTools import Edge, Switches, SwitchTable, HostTable, Switch
 from util.IPAddr import IPAddr
 from util.Performance import PerfCounter
 
@@ -36,6 +36,7 @@ class EdgeController:
         self.ctx = Context()
         self._switches = Switches()
         self._hosts = SwitchTable()
+        self._edges: dict[DPID, Edge] = {}
 
         # Load configuration
         #
@@ -57,6 +58,7 @@ class EdgeController:
         self.ctx.serviceMngr = ServiceManager(
             self.ctx,
             self.logger("ServiceMngr"),
+            self._edges,
             clusterGlob=self._clusterGlob,
             servicesGlob=self._servicesGlob,
             servicesDir=self._servicesDir)
@@ -68,10 +70,10 @@ class EdgeController:
         schedulerModule = __import__(moduleName, fromlist=[className])
         scheduler = getattr(schedulerModule, className)
 
-        self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self._hosts,
+        self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self._hosts, self._edges,
                                          scheduler(self.logger(logName)), self.flowIdleTimeout * 2)
 
-        for dpid, edge in self.ctx.edges.items():
+        for dpid, edge in self._edges.items():
             self.log.info("Switch {} -> {}".format(dpid, edge))
 
     def connect(self, of: OpenFlow):
@@ -88,7 +90,7 @@ class EdgeController:
         # REVIEW Necessary / useful?
         # elif dpid not in self.servers:
 
-        else:
+        elif dpid in self._switches:  # we only care about configured switches
             self.log.info("{} connected.".format(dpid))
 
             hostTable = self._hosts.get(dpid)
@@ -141,31 +143,32 @@ class EdgeController:
 
             self.forwarders[dpid] = fwds
 
-        # forward call to all forwarders
-        #
-        for fwd in self.forwarders[dpid]:
-            fwd.connect(of)
+            # forward call to all forwarders
+            #
+            of.switch = self._switches[dpid]  # look it up only once per request (not in every module)
+            for fwd in self.forwarders[dpid]:
+                fwd.connect(of)
 
         of.BarrierRequest().send()  # send barrier before we start to listen (just to be safe)
 
-    def connected(self, of: OpenFlow, switch):
+    def connected(self, of: OpenFlow, switchPorts):
 
-        self._switches[of.dpid] = switch
-        of.switch = switch  # pass it to all modules
+        switch = self._switches.get(of.dpid)
+        if switch is None:  # configured switches only
+            return
+
+        switch.init(switchPorts)
+        of.switch = switch  # look it up only once per request (not in every module)
 
         # we need to temporarily store the OpenFlow object
         #
         self.ofPerSwitch[of.dpid] = of
 
-        switchCfg = self._switchConfig.get(str(of.dpid.asShortInt()))
-        if switchCfg:
-            switch.gateway = IPAddr(switchCfg["gateway"])
-
         self.log.info("Added Switch {}: {}".format(of.dpid, switch))
 
         # check if all switches are connected already
         #
-        if not len([dpid for (dpid, value) in self._switches.items() if value == None]):
+        if not len([dpid for (dpid, sw) in self._switches.items() if sw.ports is None]):
             #
             # Now all forwarders should be able to retrieve responses for their network requests.
             # Otherwise, an intermediate switch might not be able yet to forward them correctly.
@@ -178,7 +181,7 @@ class EdgeController:
             # get data about all services from the attached clusters
             #
             for dpid in self._switches:
-                edge = self.ctx.edges.get(dpid)
+                edge = self._edges.get(dpid)
                 if edge and edge.cluster:
                     self.ctx.serviceMngr.initServices(edge)
 
@@ -189,6 +192,10 @@ class EdgeController:
             self.log.info("")
 
     def packetIn(self, of: OpenFlow):
+
+        switch = self._switches.get(of.dpid)
+        if switch is None:  # configured switches only
+            return
 
         perf = PerfCounter()
         of.switch = self._switches[of.dpid]  # look it up only once per request (not in every module)
@@ -228,10 +235,13 @@ class EdgeController:
             self._logPerformance = cfg.get('logPerformance', self._logPerformance)
             self._scheduler = cfg.get('scheduler', self._scheduler)
 
-            for dpid, switch in cfg['switches'].items():
+            for dpid, switchCfg in cfg['switches'].items():
 
                 dpid = DPID(dpid)
-                self._switches[dpid] = None  # not connected yet
+                switch = Switch(dpid, IPAddr(switchCfg["gateway"]))  # gateway is required
+                self._switches[dpid] = switch
 
-                for edge in switch['edges']:
-                    self.ctx.edges[dpid] = Edge(edge['ip'], dpid, edge.get('target'), edge['serviceCidr'])
+                for edgeCfg in switchCfg['edges']:
+                    edge = Edge(edgeCfg['ip'], dpid, edgeCfg.get('target'), edgeCfg['serviceCidr'])
+                    switch.edges.append(edge)
+                    self._edges[dpid] = edge  # REVIEW Store only in Switch object?

@@ -35,8 +35,7 @@ class EdgeMainRyu(app_manager.RyuApp):
     @set_ev_cls(dpset.EventDP, MAIN_DISPATCHER)
     def _event_dp_handler(self, ev):
 
-        of = OpenFlow(ev)
-        self.ctrl.connected(of, Switch(of.dpid, ev.ports))
+        self.ctrl.connected(OpenFlow(ev), ev.ports)
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):

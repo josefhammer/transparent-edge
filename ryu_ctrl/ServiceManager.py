@@ -1,4 +1,4 @@
-from unicodedata import name
+from __future__ import annotations
 
 from .Context import Context
 from util.Cluster import Cluster
@@ -8,6 +8,7 @@ from util.Service import Deployment, ServiceInstance, Service
 from util.IPAddr import IPAddr
 from util.TinyServiceTrie import TinyServiceTrie
 from util.Performance import PerfCounter
+from util.RyuDPID import DPID
 
 import os
 import glob
@@ -20,10 +21,12 @@ class ServiceManager:
 
     # REVIEW Might have to be synchronized due to parallel access.
 
-    def __init__(self, context: Context, log, clusterGlob: str, servicesGlob: str, servicesDir: str):
+    def __init__(self, context: Context, log, edges: dict[DPID, Edge], clusterGlob: str, servicesGlob: str,
+                 servicesDir: str):
 
         self.ctx = context
         self.log = log
+        self._edges = edges
         self._servicesDir = servicesDir
 
         self._services: TinyServiceTrie = TinyServiceTrie()
@@ -41,7 +44,7 @@ class ServiceManager:
         return self._services.uniquePrefix(ip)
 
     def isServer(self, dpid, addr: SocketAddr):
-        return dpid in self.ctx.edges and addr in self.ctx.edges[dpid].eServices
+        return dpid in self._edges and addr in self._edges[dpid].eServices
 
     def loadClusters(self, clusterGlob):
 
@@ -54,7 +57,7 @@ class ServiceManager:
             edgeIP = apiServer.split(":")[0]
 
             switch = None
-            for dpid, edge in self.ctx.edges.items():
+            for dpid, edge in self._edges.items():
                 if edge.ip == IPAddr(edgeIP):
                     switch = dpid
                     break

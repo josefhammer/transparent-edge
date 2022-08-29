@@ -60,26 +60,23 @@ class ArpTracker(object):
         switch = of.switch
         assert (srcMac != switch.mac)
 
-        # ARP request for all local edge servers we need to track
-        #
-        # ATTENTION: Do not use a known IP address ... we might not get an answer then.
-        #
-        if of.dpid in self.ctx.edges:
-            edgeIP = self.ctx.edges[of.dpid].ip
-
-            of.ArpRequest(edgeIP).src(srcMac, "169.254.42.42").send()  # use an APIPA private IP
-            self.log.info("ARP request sent for {}".format(edgeIP))
-
         # populate default forwarding table with data about the gateway to speed things up
         #
         if switch.gateway:
             of.ArpRequest(switch.gateway).src(srcMac, "169.254.42.42").send()  # use an APIPA private IP
 
+        # ARP request for all local edge servers we need to track
+        #
+        # ATTENTION: Do not use a known IP address ... we might not get an answer then.
+        #
+        for edge in switch.edges:
+            of.ArpRequest(edge.ip).src(srcMac, "169.254.42.42").send()  # use an APIPA private IP
+            self.log.info("ARP request sent for {}".format(edge.ip))
+
             # Unfortunately, we don't get a response for the gateway if we are the gateway switch. Thus,
             # we add our own MAC address manually.
             #
-            edge = self.ctx.edges.get(of.dpid)
-            if edge is not None and (edge.ip == switch.gateway):
+            if edge.ip == switch.gateway:
                 self._setArp(self.log, dpid=of.dpid, eth_src=switch.mac, ip_src=switch.gateway)
 
     def packetIn(self, of: OpenFlow):

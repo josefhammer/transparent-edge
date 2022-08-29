@@ -29,10 +29,6 @@ class EdgeDetector:
         self.useUniqueMask = useUniqueMask
         self.idleTimeout = flowIdleTimeout
 
-        self.aPrivateIP = self.ctx.edges[next(iter(self.ctx.edges))].ip  # any private IP to calculate the netmask
-        assert (self.aPrivateIP is not None)
-        assert (self.aPrivateIP.isPrivateIP())
-
         self.isDebugLogLevel = log.isEnabledFor(DEBUG)
         self.isInfoLogLevel = log.isEnabledFor(INFO)
 
@@ -44,10 +40,14 @@ class EdgeDetector:
         of.FlowMod().table(self.preSelectTable).clearTable()
         of.FlowMod().table(self.table).clearTable()
 
-        self.configurePreSelectTable(of)
-        self.configureEdgeTable(of)
+        aPrivateIP = of.switch.gateway  # any private IP to calculate the netmask
+        assert (aPrivateIP is not None)
+        assert (aPrivateIP.isPrivateIP())
 
-    def configurePreSelectTable(self, of: OpenFlow):
+        self.configurePreSelectTable(of, aPrivateIP)
+        self.configureEdgeTable(of, aPrivateIP)
+
+    def configurePreSelectTable(self, of: OpenFlow, aPrivateIP):
         #
         # This separate table is used for performance reasons. Only potential edge traffic shall go through
         # the specific switching rules. Rationale for using a separate table: OpenFlow does not allow
@@ -62,22 +62,17 @@ class EdgeDetector:
 
         for proto in [of.IPPROTO_TCP, of.IPPROTO_UDP]:
             of.FlowMod().table(self.preSelectTable).priority(1).match(
-                of.Match(ip_proto=proto).srcIP(self.aPrivateIP,
-                                               self.aPrivateIP.privateIPMask())).actions(gotoEdgeRedir).send()
+                of.Match(ip_proto=proto).srcIP(aPrivateIP, aPrivateIP.privateIPMask())).actions(gotoEdgeRedir).send()
 
         # Fallthrough rule: send to defaultTable
         #
         of.FlowMod().table(self.preSelectTable).priority(0).actions(of.Action().gotoTable(self.defaultTable)).send()
 
-    def configureEdgeTable(self, of: OpenFlow):
+    def configureEdgeTable(self, of: OpenFlow, aPrivateIP):
         #
         # Fallthrough rule for the edge table: send to controller
         #
         of.FlowMod().table(self.table).priority(0).actions(of.Action().sendToController()).send()
-
-        # any private IP - just to calculate the netmask of the private network
-        #
-        aPrivateIP = self.ctx.edges[next(iter(self.ctx.edges))].ip
 
         # Proactively install edge return-flows (permanent):
         #
@@ -86,8 +81,7 @@ class EdgeDetector:
         # speed up the 'main' traffic (i.e. to reduce the number of rules and packet-ins for this table).
         #
         #
-        if of.dpid in self.ctx.edges:
-            edge = self.ctx.edges[of.dpid]  # TODO allow multiple edges
+        for edge in of.switch.edges:  # multiple edges per switch allowed
             for cidr in edge.serviceCidr:
 
                 # If src is edge and dst is private -> userTable

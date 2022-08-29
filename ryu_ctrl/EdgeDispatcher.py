@@ -15,11 +15,18 @@ class EdgeDispatcher:
 
     # REVIEW Might have to be synchronized due to parallel access.
 
-    def __init__(self, context: Context, log, switchTable: SwitchTable, scheduler, memIdleTimeout=10):
+    def __init__(self,
+                 context: Context,
+                 log,
+                 switchTable: SwitchTable,
+                 edges: dict[DPID, Edge],
+                 scheduler,
+                 memIdleTimeout=10):
 
         self.ctx = context
         self.log = log
         self._hosts = switchTable
+        self._edges = edges
         self._scheduler = scheduler
 
         # Remember the locations of the clients to detect client movement
@@ -110,7 +117,7 @@ class EdgeDispatcher:
                 log.info("---Migration--- {} @ {} -> {}".format(ip, prev, dpid))
 
         self.locations[ip] = dpid
-        log.debug("Location: {} @ {}".format(ip, dpid))
+        log.debug("Location: {} @ {}".format(ip, dpid))
         return prev
 
     def printClientLocations(self):
@@ -123,7 +130,7 @@ class EdgeDispatcher:
         result = []
         svcInstance = None
 
-        for switch, edge in self.ctx.edges.items():
+        for switch, edge in self._edges.items():
 
             # find a server that hosts (or may host) the required service
             #
