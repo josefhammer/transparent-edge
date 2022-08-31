@@ -41,8 +41,12 @@ class EdgeDispatcher:
 
         Returns (edge: SocketAddr).
         """
-
         log = self.log
+        dpid = switch.dpid
+
+        # Track user location
+        #
+        self._setClientLocation(dpid, src)
 
         # Do we already know this flow?
         entry = self.memory.getFwd(src, dst)
@@ -54,8 +58,7 @@ class EdgeDispatcher:
 
             # REVIEW: If edge is different, we would need to route it to the other switch first (destMac = switch).
 
-            dpid = switch.dpid
-            svc, edges = self.availServers(dpid, dst)  # running instance available?
+            svc, edges = self._availServers(dpid, dst)  # running instance available?
             edge, hasRunningInstance = self._scheduler.schedule(dpid, svc.service, edges)
 
             if not hasRunningInstance:  # try to deploy an instance
@@ -104,9 +107,11 @@ class EdgeDispatcher:
 
         return entry.dst  # original destination (= ServiceID)
 
-    # TODO I could check if rule is active; otherwise (or when stateless) the migration does not matter
-    #
-    def setClientLocation(self, dpid: DPID, src: SocketAddr):
+    def printClientLocations(self):
+        for ip in self.locations:
+            self.log.info("Location: {} @ {}".format(ip, self.locations[ip]))
+
+    def _setClientLocation(self, dpid: DPID, src: SocketAddr):
         prev = None
         log = self.log
         ip = src.ip
@@ -120,11 +125,7 @@ class EdgeDispatcher:
         log.debug("Location: {} @ {}".format(ip, dpid))
         return prev
 
-    def printClientLocations(self):
-        for ip in self.locations:
-            self.log.info("Location: {} @ {}".format(ip, self.locations[ip]))
-
-    def availServers(self, dpid, addr: SocketAddr) -> tuple[ServiceInstance, list[Edge, bool]]:
+    def _availServers(self, dpid, addr: SocketAddr) -> tuple[ServiceInstance, list[Edge, bool]]:
 
         log = self.log
         result = []

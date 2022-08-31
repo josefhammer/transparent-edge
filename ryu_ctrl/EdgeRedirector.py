@@ -65,16 +65,10 @@ class EdgeRedirector:
         #
         #  It's for our service IP
         #
-        dpid = of.dpid
-
         edge = self.dispatcher.dispatch(of.switch, src, dst)
         if edge is None:
             log.warn("No servers available for %s --> regular forwarding.", dst)
             return False
-
-        # Track user location
-        #
-        self.dispatcher.setClientLocation(dpid, src)
 
         # Set up table entry towards selected server
         #
