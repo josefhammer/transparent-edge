@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from util.MemoryEntry import MemoryEntry, Memory
 from util.SocketAddr import SocketAddr
-from util.Service import ServiceInstance
+from util.Service import ServiceInstance, Service
 from util.EdgeTools import Edge, Switch, SwitchTable
 from util.RyuDPID import DPID
 from .Context import Context
@@ -58,16 +58,19 @@ class EdgeDispatcher:
 
             # REVIEW: If edge is different, we would need to route it to the other switch first (destMac = switch).
 
-            svc, edges = self._availServers(dpid, dst)  # running instance available?
-            edge, hasRunningInstance = self._scheduler.schedule(dpid, svc.service, edges)
+            service, edges = self._availServers(dpid, dst)  # running instances available?
+            if not service:
+                service = self.ctx.serviceMngr.service(dst)
+            edge, numRunningInstances = self._scheduler.schedule(dpid, service, edges)
 
-            if not hasRunningInstance:  # try to deploy an instance
-
+            if numRunningInstances:
+                svc = edge.vServices.get(dst)
+            else:
                 if edge is None:
                     log.warn("No server found for service {} at switch {}.".format(dst, dpid))
                     return None
 
-                svc = self.ctx.serviceMngr.deployService(edge, dst)
+                svc = self.ctx.serviceMngr.deployService(edge, dst)  # try to deploy an instance
 
                 if not svc:
                     log.warn("Could not instantiate service {} at edge {}.".format(dst, edge.ip))
@@ -125,11 +128,13 @@ class EdgeDispatcher:
         log.debug("Location: {} @ {}".format(ip, dpid))
         return prev
 
-    def _availServers(self, dpid, addr: SocketAddr) -> tuple[ServiceInstance, list[Edge, bool]]:
-
+    def _availServers(self, dpid, addr: SocketAddr) -> tuple[Service, list[Edge, int]]:
+        """
+        :returns: A list of edges with the number of running instances in it.
+        """
         log = self.log
         result = []
-        svcInstance = None
+        service = None
 
         for switch, edge in self._edges.items():
 
@@ -138,20 +143,19 @@ class EdgeDispatcher:
             svc = edge.vServices.get(addr)
             if svc is not None:  # we found a running instance
 
-                if svcInstance is None:  # if we have an instance, return it
-                    svcInstance = svc
+                service = svc.service  # if we found an instance -> return it (performance)
 
                 if svc.edgeIP in self._hosts[switch]:
-                    result.append((edge, True))
+                    result.append((edge, 1))
                 else:
                     log.warn("Server {} not available at switch {}".format(svc.edgeIP, dpid))
                     log.debug(self._hosts)
             else:
                 if edge.cluster and edge.cluster._ip and edge.cluster._ip in self._hosts[switch]:
-                    result.append((edge, False))
+                    result.append((edge, 0))
 
                 elif edge.cluster and edge.cluster._ip:
                     log.warn("Cluster {} not available at switch {}".format(edge.cluster._ip, dpid))
                     log.debug(self._hosts)
 
-        return svcInstance, result
+        return service, result

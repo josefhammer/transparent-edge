@@ -44,6 +44,9 @@ class ServiceManager:
     def isServer(self, dpid, addr: SocketAddr):
         return dpid in self._edges and addr in self._edges[dpid].eServices
 
+    def service(self, addr: SocketAddr):
+        return self._services.get(addr)
+
     def loadClusters(self, clusterGlob):
 
         files = glob.glob(clusterGlob)

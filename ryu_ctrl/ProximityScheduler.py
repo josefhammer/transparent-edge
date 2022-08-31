@@ -18,8 +18,8 @@ class ProximityScheduler:
         self.log = log
         self.cfg = cfg
 
-    def schedule(self, dpid: DPID, service: Service, edges: list[Edge, bool]) -> tuple[Edge, bool]:
-        # input: list of [edge -> True|False] if a service is running already there or not
+    def schedule(self, dpid: DPID, service: Service, edges: list[Edge, int]) -> tuple[Edge, int]:
+        # input: list of [edge -> numRunningInstancesInEdge]
 
         choices = [(edge, avail) for (edge, avail) in edges if avail]  # preference for running instance first
 
