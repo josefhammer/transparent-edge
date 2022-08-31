@@ -14,7 +14,7 @@ class K8sService(object):
     """
     LABEL_NAME = "edge.service"
 
-    def __init__(self, label, filename=None, yml: dict = None):
+    def __init__(self, label=None, filename=None, yml: dict = None):
 
         self.label = label
         self.port = None
@@ -22,15 +22,18 @@ class K8sService(object):
         self.podPort = None
         self.clusterIP = None
         self.type = None
-        self.yaml = None
+        self.yaml = []
 
         self.containsService = False
         self.containsDeployment = False
 
+        if label is None and not filename is None:
+            self.label = Service.labelFromServiceFilename(filename)
+
         assert (filename is not None or yml is not None)  # only one of both allowed
         if filename is not None:
             self.yaml = self._loadYaml(filename)
-        else:
+        elif yml is not None:
             self.yaml = yml
         self._parseYaml(self.yaml)
 

@@ -7,6 +7,8 @@ Classes regarding edge services.
 from util.IPAddr import IPAddr
 from util.SocketAddr import SocketAddr
 
+import os
+
 
 class Service(object):
     """
@@ -23,6 +25,10 @@ class Service(object):
 
     def name(self):  # REVIEW property?
         return self.label.rsplit('.', 1)[1]
+
+    @staticmethod
+    def labelFromServiceFilename(filename) -> str:
+        return os.path.splitext(os.path.basename(filename))[0]
 
     def __eq__(self, other):
         if (isinstance(other, Service)):

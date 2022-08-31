@@ -27,9 +27,7 @@ class ServiceManager:
         self.ctx = context
         self.log = log
         self._edges = edges
-        self._servicesDir = servicesDir
-
-        self._services: TinyServiceTrie = TinyServiceTrie()
+        self._services: TinyServiceTrie = TinyServiceTrie(servicesDir)
 
         self.loadClusters(clusterGlob)
         self.loadServices(servicesGlob)
@@ -70,19 +68,8 @@ class ServiceManager:
         files = glob.glob(servicesGlob)
 
         for filename in files:
-            service = self._loadService(filename)
+            service = Cluster.initService(filename=filename)
             self._addService(service.toService(edgeIP=None, target=None), filename)
-
-    def _loadService(self, filename, isSymlink=False):
-
-        if isSymlink:  # symlinks created by us do not contain the label (but do not resolve other symlinks)
-            filename = os.readlink(filename)
-
-        return Cluster.initService(self._labelFromServiceFilename(filename), filename)
-
-    def _labelFromServiceFilename(self, filename) -> str:  # REVIEW Move to Service or somewhere else?
-
-        return os.path.splitext(os.path.basename(filename))[0]
 
     def initServices(self, edge: Edge):
         """
@@ -104,26 +91,13 @@ class ServiceManager:
                         svcInstance.deployment = deployments.get(svc.label, [Deployment()])[0]
                         self._addServiceInstance(svcInstance, edge)
 
-    def _serviceFilename(self, vAddr: SocketAddr):
-
-        return os.path.join(self._servicesDir, str(vAddr) + '.yml')
-
     def _addService(self, svc: Service, svcFilename: str = None):
 
         # Add service to global ServiceTrie
         #
         if not self._services.contains(svc.vAddr):
-            self._services.set(svc.vAddr)
-
-            # create a symlink to the original file to be able to load the service details at any time
-            #
-            assert svcFilename is not None
-            filename = self._serviceFilename(svc.vAddr)
-            tempfilename = filename + ".tmp"
-            os.symlink(svcFilename, tempfilename)  # create symlink with tempname first in case it exists already
-            os.replace(tempfilename, filename)  # replace vs remove first avoids a race condition
+            self._services.set(svc.vAddr, svcFilename)
             self.log.info("ServiceID " + str(svc))
-            return svc
 
     def _addServiceInstance(self, svcInstance, edge):
 
@@ -147,7 +121,7 @@ class ServiceManager:
 
     def deployService(self, edge: Edge, vAddr: SocketAddr):
 
-        service = self._loadService(self._serviceFilename(vAddr), isSymlink=True)
+        service = Cluster.initService(label=self._services[vAddr].label, filename=self._services.serviceFilename(vAddr))
         service.annotate()
 
         perf = PerfCounter()

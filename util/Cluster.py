@@ -18,7 +18,7 @@ class Cluster:
         return None
 
     @staticmethod
-    def initService(label, filename=None, yml: dict = None):
+    def initService(label=None, filename=None, yml: dict = None):
         """
         Factory method to create a service from its definition (file or yaml).
         

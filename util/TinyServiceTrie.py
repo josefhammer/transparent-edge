@@ -4,23 +4,33 @@ from util.IPAddr import IPAddr
 from util.Service import Service
 from TinyTricia import TinyTricia
 
+import os
+
 
 class TinyServiceTrie(object):
-    def __init__(self, numBits=48):
+    def __init__(self, servicesDir: str, numBits=48):
         self._trie = TinyTricia(numBits)
+        self._servicesDir = servicesDir
 
-    def set(self, addr: SocketAddr, svc: Service = None):
-        self._trie.set(addr.ip.ip << 16 | addr.port, svc)
+    def set(self, addr: SocketAddr, svcFilename: str):
+
+        if not self.contains(addr):
+            self._createLink(addr, svcFilename)
+
+        self._trie.set(addr.ip.ip << 16 | addr.port)
 
     def get(self, addr: SocketAddr) -> Service:
-        key, value = self._trie.get(addr.ip.ip << 16 | addr.port)
+        value = self._trie.get(addr.ip.ip << 16 | addr.port)
 
-        if key is None:
-            return None
+        if value is not None:  # to save memory space, we do not store values but regenerate them on demand
+            #
+            # symlinks created by us do not contain the label (but: avoid resolving other symlinks)
+            #
+            filename = os.readlink(self.serviceFilename(addr))
+            label = Service.labelFromServiceFilename(filename)
 
-        if value is None:
-            return Service(addr, label=None)
-        return value
+            return Service(addr, label)
+        return None
 
     def contains(self, addr: SocketAddr) -> bool:
         return self._trie.contains(addr.ip.ip << 16 | addr.port)
@@ -38,6 +48,20 @@ class TinyServiceTrie(object):
         firstN, prefixes = self._trie.containsFirstNBits(ip.ip << 16)
 
         return firstN + 1, [prefix - 16 for prefix in prefixes]  # +1: the next bit must match too
+
+    def serviceFilename(self, addr: SocketAddr):
+
+        return os.path.join(self._servicesDir, str(addr) + '.yml')
+
+    def _createLink(self, vAddr: SocketAddr, svcFilename: str):
+        #
+        # create a symlink to the original file to be able to load the service details at any time
+        #
+        assert svcFilename is not None
+        filename = self.serviceFilename(vAddr)
+        tempfilename = filename + ".tmp"
+        os.symlink(svcFilename, tempfilename)  # create symlink with tempname first in case it exists already
+        os.replace(tempfilename, filename)  # replace vs remove first avoids a race condition
 
     def __setitem__(self, key: SocketAddr, item):
         self.set(key, item)
