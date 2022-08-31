@@ -35,7 +35,7 @@ class K8sCluster:
         self._labelName = labelName
         self._log = log
         if self._log is None:
-            self._log = getLogger("K8s")
+            self._log = getLogger("K8s." + str(self._ip))
 
         self._apiClient = self._apiClient(apiServer, tokenFileName)
 
