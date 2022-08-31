@@ -46,7 +46,10 @@ class EdgeController:
         self._switchConfig = None
         self._useUniqueMask = True
         self._logPerformance = False
-        self._scheduler = "ryu_ctrl.ProximityScheduler.ProximityScheduler:ProxScheduler"  # default value
+        self._scheduler = {
+            "class": "ryu_ctrl.ProximityScheduler.ProximityScheduler",
+            "logName": "ProxScheduler"
+        }  # default value
 
         self.loadConfig(os_getenv('EDGE_CONFIG'))
 
@@ -65,13 +68,13 @@ class EdgeController:
 
         # dynamically load scheduler
         #
-        moduleName, logName = self._scheduler.split(":")
-        moduleName, className = moduleName.rsplit(".", 1)
+        moduleName, className = self._scheduler["class"].rsplit(".", 1)
         schedulerModule = __import__(moduleName, fromlist=[className])
         scheduler = getattr(schedulerModule, className)
 
         self.dispatcher = EdgeDispatcher(self.ctx, self.logger("Dispatcher"), self._hosts, self._edges,
-                                         scheduler(self.logger(logName)), self.flowIdleTimeout * 2)
+                                         scheduler(self.logger(self._scheduler["logName"]), self._scheduler),
+                                         self.flowIdleTimeout * 2)
 
         for dpid, edge in self._edges.items():
             self.log.info("Switch {} -> {}".format(dpid, edge))

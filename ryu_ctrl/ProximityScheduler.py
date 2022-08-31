@@ -13,9 +13,10 @@ class ProximityScheduler:
     'Closest' here means 'the edge that is directly attached to the switch that got the request'.
     """
 
-    def __init__(self, log):
+    def __init__(self, log, cfg: dict):
 
         self.log = log
+        self.cfg = cfg
 
     def schedule(self, dpid: DPID, service: Service, edges: list[Edge, bool]) -> tuple[Edge, bool]:
         # input: list of [edge -> True|False] if a service is running already there or not

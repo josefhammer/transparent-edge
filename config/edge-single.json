@@ -29,5 +29,9 @@
     },
     "arpSrcMac": "02:00:00:00:00:ff",
     "flowIdleTimeout": 5,
-    "useUniqueMask": true
+    "useUniqueMask": true,
+    "scheduler": {
+        "class": "ryu_ctrl.ProximityScheduler.ProximityScheduler",
+        "logName": "ProxScheduler"
+    }
 }
