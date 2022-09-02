@@ -344,10 +344,13 @@ class FlowMod(Message):
         self.msg.table_id = tableID
         return self
 
-    def idleTimeout(self, timeout):
+    def idleTimeout(self, timeout, notify: bool = False):
 
         if timeout != None:
             self.msg.idle_timeout = timeout
+
+            if notify:  # request FlowRemoved message
+                self.msg.flags = self.of.proto.OFPFF_SEND_FLOW_REM
         return self
 
     def match(self, match):

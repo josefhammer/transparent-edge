@@ -45,3 +45,8 @@ class EdgeMainRyu(app_manager.RyuApp):
     @set_ev_cls(ofp_event.EventOFPBarrierReply, MAIN_DISPATCHER)
     def barrier_reply_handler(self, ev):
         pass
+
+    @set_ev_cls(ofp_event.EventOFPFlowRemoved, MAIN_DISPATCHER)
+    def flow_removed_handler(self, ev):
+
+        self.ctrl.flowRemoved(OpenFlow(ev))

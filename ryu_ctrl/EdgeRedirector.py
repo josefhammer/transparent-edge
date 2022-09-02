@@ -132,4 +132,5 @@ class EdgeRedirector:
 
     def redirect(self, of, match, actions, packetOut=False):
 
-        of.FlowMod().table(self.table).idleTimeout(self.idleTimeout).match(match).actions(actions, packetOut).send()
+        of.FlowMod().table(self.table).idleTimeout(
+            self.idleTimeout, notify=True).match(match).actions(actions, packetOut).send()

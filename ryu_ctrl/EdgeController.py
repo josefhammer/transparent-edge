@@ -210,6 +210,16 @@ class EdgeController:
         if self._logPerformance and (of.msg.table_id == 1 or of.msg.table_id == 2):
             self.log.warn("packetIn: {}ms".format(perf.laps()))
 
+    def flowRemoved(self, of: OpenFlow):
+
+        msg = of.msg
+
+        if msg.reason == of.proto.OFPRR_IDLE_TIMEOUT:
+            self.log.info('-=FLOW src=%s:%s dst=%s:%s proto=%s cookie=%d %dsec packets=%d bytes=%d',
+                          msg.match.get('ipv4_src'), msg.match.get('tcp_src'), msg.match.get('ipv4_dst'),
+                          msg.match.get('tcp_dst'), msg.match.get('ip_proto'), msg.cookie, msg.duration_sec,
+                          msg.packet_count, msg.byte_count)  # msg.idle_timeout, msg.priority, msg.match
+
     def logger(self, name, dpid=None):
         #
         # Returns the child logger including the DPID.
