@@ -2,6 +2,7 @@ from .EdgeDispatcher import EdgeDispatcher
 from .Context import Context
 from util.SocketAddr import SocketAddr
 from util.RyuOpenFlow import OpenFlow, Packet
+from util.Stats import Stats
 from logging import DEBUG, INFO
 
 
@@ -132,5 +133,7 @@ class EdgeRedirector:
 
     def redirect(self, of, match, actions, packetOut=False):
 
-        of.FlowMod().table(self.table).idleTimeout(
+        cookie = Stats.REDIR_EDGE if isinstance(packetOut, bool) else Stats.REDIR_DEFAULT
+
+        of.FlowMod().table(self.table).cookie(cookie).idleTimeout(
             self.idleTimeout, notify=True).match(match).actions(actions, packetOut).send()
