@@ -334,6 +334,11 @@ class FlowMod(Message):
         self.msg = self._dp.ofproto_parser.OFPFlowMod(self._dp)
         self._initBufferID()
 
+    def cookie(self, cookie):
+
+        self.msg.cookie = cookie
+        return self
+
     def priority(self, priority):
 
         self.msg.priority = priority
