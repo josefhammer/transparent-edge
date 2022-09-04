@@ -95,8 +95,7 @@ class K8sCluster:
     def deployments(self, label=None):
 
         return self._toMap(label, self.rawDeployments,
-            lambda i: Deployment(self._noneToZero(i.status.available_replicas),
-                self._noneToZero(i.status.ready_replicas)))
+                           lambda i: Deployment(i.status.available_replicas or 0, i.status.ready_replicas or 0))
 
     def pods(self, label=None):
 
@@ -145,10 +144,6 @@ class K8sCluster:
             utils.create_from_yaml(self._apiClient, yaml_file=filename, yaml_objects=yml, namespace=self._namespace)
         except Exception as e:
             self._log.warn(e)
-
-    def _noneToZero(self, value):
-
-        return 0 if value is None else value
 
     def _apiClient(self, apiServer, tokenFileName):
 
