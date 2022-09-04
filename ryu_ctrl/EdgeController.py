@@ -23,6 +23,12 @@ class EdgeController:
     """
     Maintains the overall system state.
     """
+    # OpenFlow: Resubmit (gotoTable) is only possible with ascending table IDs!
+    #
+    PRESELECT_TABLE = 0
+    EDGE_DETECT_TABLE = 1
+    EDGE_REDIR_TABLE = 2
+    DEFAULT_TABLE = 3
 
     def __init__(self, logParent):
 
@@ -83,6 +89,11 @@ class EdgeController:
 
         dpid = of.dpid
 
+        switch = self._switches.get(dpid)
+        if switch is None:  # configured switches only
+            return
+        of.switch = switch
+
         # Do we already have a forwarder for this switch?
         #
         # REVIEW: Is it safe to reconnect without setting up the default forwarding rules again?
@@ -100,22 +111,15 @@ class EdgeController:
             if hostTable is None:
                 self._hosts[dpid] = hostTable = HostTable()
 
-            # OpenFlow: Resubmit (gotoTable) is only possible with ascending table IDs!
-            #
-            preSelectTable = 0
-            edgeRedirTable = 1
-            userRedirTable = 2
-            defaultTable = 3
-
             fwds = []
             fwds.append(
                 EdgeDetector(
                     self.ctx,
                     self.logger("Detect", dpid),
-                    preSelectTableID=preSelectTable,
-                    tableID=edgeRedirTable,
-                    userTableID=userRedirTable,
-                    defaultTableID=defaultTable,
+                    preSelectTableID=self.PRESELECT_TABLE,
+                    tableID=self.EDGE_DETECT_TABLE,
+                    userTableID=self.EDGE_REDIR_TABLE,
+                    defaultTableID=self.DEFAULT_TABLE,
                     useUniqueMask=self._useUniqueMask,
                     flowIdleTimeout=self.flowIdleTimeout))
             fwds.append(
@@ -123,25 +127,25 @@ class EdgeController:
                     self.ctx,
                     self.logger("Redir", dpid),
                     self.dispatcher,
-                    tableID=userRedirTable,
-                    defaultTableID=defaultTable,
+                    tableID=self.EDGE_REDIR_TABLE,
+                    defaultTableID=self.DEFAULT_TABLE,
                     flowIdleTimeout=self.flowIdleTimeout))
             fwds.append(
                 L2TableForwarder(
                     self.ctx,
                     self.logger("L2Fwd", dpid),
-                    table1ID=defaultTable,
-                    table2ID=defaultTable + 1,
+                    table1ID=self.DEFAULT_TABLE,
+                    table2ID=self.DEFAULT_TABLE + 1,
                     flowIdleTimeout=self.flowIdleTimeout * 4))  # few + stable rules: use a longer timeout here
             fwds.append(
                 ArpTracker(
                     self.ctx,
                     self.logger("ArpTracker", dpid),
                     hostTable,
-                    preSelectTable,
+                    self.PRESELECT_TABLE,
                     srcMac=self.arpSrcMac,
                     installFlow=True,
-                    fwdTable=defaultTable))
+                    fwdTable=self.DEFAULT_TABLE))
             fwds.append(PortTracker(self.ctx, self.logger("PortTracker", dpid)))
 
             self.forwarders[dpid] = fwds
@@ -212,13 +216,26 @@ class EdgeController:
 
     def flowRemoved(self, of: OpenFlow):
 
-        msg = of.msg
+        switch = self._switches.get(of.dpid)
+        if switch is None:  # configured switches only
+            return
 
-        if msg.reason == of.proto.OFPRR_IDLE_TIMEOUT:
-            self.log.info('-=FLOW src=%s:%s dst=%s:%s proto=%s cookie=%d %dsec packets=%d bytes=%d',
-                          msg.match.get('ipv4_src'), msg.match.get('tcp_src'), msg.match.get('ipv4_dst'),
+        msg = of.msg
+        if (msg.reason == of.proto.OFPRR_IDLE_TIMEOUT):
+
+            self.log.info('-=FLOW tbl=%d src=%s:%s dst=%s:%s proto=%s cookie=%d %dsec packets=%d bytes=%d',
+                          msg.table_id, msg.match.get('ipv4_src'), msg.match.get('tcp_src'), msg.match.get('ipv4_dst'),
                           msg.match.get('tcp_dst'), msg.match.get('ip_proto'), msg.cookie, msg.duration_sec,
-                          msg.packet_count, msg.byte_count)  # msg.idle_timeout, msg.priority, msg.match
+                          msg.packet_count, msg.byte_count)
+
+        xid = of.AggregateStatsRequest().table(msg.table_id).send()
+        self.log.info("AggregateStatsRequest: table=%d xid=%d", msg.table_id, xid)
+
+    def aggregateStats(self, of: OpenFlow):
+
+        body = of.msg.body
+        self.log.info('AggregateStats: xid=%d packet_count=%d byte_count=%d '
+                      'flow_count=%d', of.msg.xid, body.packet_count, body.byte_count, body.flow_count)
 
     def logger(self, name, dpid=None):
         #

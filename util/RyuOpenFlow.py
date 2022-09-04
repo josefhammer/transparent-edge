@@ -78,6 +78,9 @@ class OpenFlow(object):
     def BarrierRequest(self):
         return BarrierRequest(self)
 
+    def AggregateStatsRequest(self):
+        return AggregateStatsRequest(self)
+
     def ArpRequest(self, dstIP):
         return ArpRequest(self, dstIP)
 
@@ -436,6 +439,45 @@ class BarrierRequest(Message):
         super().__init__(of)
 
         self.msg = of.parser.OFPBarrierRequest(self._dp)
+
+
+class AggregateStatsRequest(Message):
+    def __init__(self, of: OpenFlow):
+        super().__init__(of)
+
+        cookie = cookieMask = 0
+
+        self.msg = self.of.parser.OFPAggregateStatsRequest(
+            self._dp,
+            0,
+            of.proto.OFPTT_ALL,
+            of.proto.OFPP_ANY,
+            of.proto.OFPG_ANY,
+            cookie,
+            cookieMask,
+            match=of.parser.OFPMatch())
+
+    def cookie(self, cookie, mask):
+
+        self.msg.cookie = cookie
+        self.msg.cookieMask = mask
+        return self
+
+    def table(self, tableID):
+
+        self.msg.table_id = tableID
+        return self
+
+    def match(self, match):
+
+        if isinstance(match, Match):
+            match = match.build()
+        self.msg.match = match
+        return self
+
+    def send(self):
+        super().send()
+        return self.msg.xid  # required to track the correct response
 
 
 class ArpRequest(Message):

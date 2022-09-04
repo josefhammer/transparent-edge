@@ -6,7 +6,6 @@ from ryu.ofproto import ofproto_v1_3
 from ryu.controller import dpset
 
 from util.RyuOpenFlow import OpenFlow
-from util.EdgeTools import Switch
 
 from ryu_ctrl.EdgeController import EdgeController
 
@@ -50,3 +49,8 @@ class EdgeMainRyu(app_manager.RyuApp):
     def flow_removed_handler(self, ev):
 
         self.ctrl.flowRemoved(OpenFlow(ev))
+
+    @set_ev_cls(ofp_event.EventOFPAggregateStatsReply, MAIN_DISPATCHER)
+    def aggregate_stats_reply_handler(self, ev):
+
+        self.ctrl.aggregateStats(OpenFlow(ev))
