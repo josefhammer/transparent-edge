@@ -5,7 +5,7 @@ from __future__ import annotations
 import urllib3
 urllib3.disable_warnings()  # https://urllib3.readthedocs.io/en/1.26.x/advanced-usage.html#ssl-warnings
 
-from kubernetes import client, config, utils
+from kubernetes import client, config, utils, watch
 from kubernetes.client.rest import ApiException
 
 from collections import defaultdict
@@ -16,8 +16,7 @@ from util.SocketAddr import SocketAddr
 from util.K8sService import K8sService
 
 from logging import WARNING, getLogger
-
-import time
+from functools import partial
 
 
 class K8sCluster:
@@ -55,30 +54,29 @@ class K8sCluster:
             if not svcInst:
                 return None
 
-            # TODO Replace with 'watch'
-            #
             # Unfortunately, filtering pods by label is not perfectly reliable. Should use pod-template-hash instead:
             # (https://stackoverflow.com/questions/52957227/kubectl-command-to-list-pods-of-a-deployment-in-kubernetes)
             #
-            # E.g., here the IP of a previous POD is used (and thus it does not work):
+            # NOTE: Actually, the info from the link above did not solve my issue. The 'pod-template-hash' was the same
+            # for all pods. In the end, the solution was to filter out pods with metadata.deletion_timestamp != None.
             #
-            # [K8s        ] Deployment: ready=1 podStatus=Running podIP=10.1.100.160     # <-- should be 162 already
-            # [ServiceMngr] ServiceInstance @ #1: 143.205.180.80:80 (at.aau.hostinfo) @ 10.0.2.100 (10.1.100.160:80)
+            # While the 'pod-template-hash' shows a connection to a specific deployment, if the same deployment is
+            # deleted and created again immediately, the only solution is to filter by deletion_timestamp.
             #
-            while (True):
+            w = watch.Watch()
+            events = partial(w.stream, self._k8sApps.list_namespaced_deployment, self._namespace)
 
-                pods = self.pods(service.label)
-                deps = self.deployments(service.label)
+            # REVIEW We might have to do an initial query first in case the deployment is really fast
+            #
+            for event in events(label_selector=self._labelSelector(service.label), _request_timeout=60):
+                d = event['object']
+                depl = Deployment(d.status.available_replicas or 0, d.status.ready_replicas or 0)
 
-                if len(pods) and len(deps):
-                    self._log.debug("Deployment: ready={} podStatus={} podIP={}".format(
-                        deps[0].ready_replicas, pods[0].status, pods[0].ip))
+                self._log.debug(f"Deployment: event={event['type']} ready={depl.ready_replicas}")
 
-                if len(deps) and deps[0].ready_replicas:
-
-                    svcInst.deployment = deps[0]
-                    break
-                time.sleep(0.1)
+                if depl.ready_replicas:
+                    svcInst.deployment = depl
+                    w.stop()
 
             return svcInst
         return None
@@ -112,7 +110,9 @@ class K8sCluster:
 
     def rawPods(self, label=None):
 
-        return self._getItems(label, self._k8s.list_namespaced_pod, self._k8s.list_pod_for_all_namespaces)
+        # filter out all pods marked for deletion
+        return filter(lambda p: p.metadata.deletion_timestamp is None,
+                      self._getItems(label, self._k8s.list_namespaced_pod, self._k8s.list_pod_for_all_namespaces))
 
     def rawEndpoints(self, label=None):
 
@@ -204,13 +204,17 @@ class K8sCluster:
     def _getItems(self, label, funcNs, funcAll):
 
         try:
-            if self._namespace is None:
-                ret = funcAll(label_selector=self._labelSelector(label))
-            else:
-                ret = funcNs(self._namespace, label_selector=self._labelSelector(label))
+            ret = self._getFunc(label, funcNs, funcAll)()
 
             return self._filterNamespace(self._filterLabelAvailable(ret.items))
 
         except ApiException as e:
             self._log.warn(e)
             return []
+
+    def _getFunc(self, label, funcNs, funcAll):
+
+        if self._namespace is None:
+            return partial(funcAll, label_selector=self._labelSelector(label))
+        else:
+            return partial(funcNs, self._namespace, label_selector=self._labelSelector(label))
