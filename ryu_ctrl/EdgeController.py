@@ -39,7 +39,6 @@ class EdgeController:
         self.forwarders = {}
         self.ofPerSwitch = {}
         self._switches = Switches()
-        self._edges: dict[DPID, Edge] = {}
 
         # Load configuration
         #
@@ -64,7 +63,6 @@ class EdgeController:
         self._serviceMngr = ServiceManager(
             self.logger("ServiceMngr"),
             self._switches,
-            self._edges,
             clusterGlob=self._clusterGlob,
             servicesGlob=self._servicesGlob,
             servicesDir=self._servicesDir)
@@ -79,8 +77,9 @@ class EdgeController:
             self.logger("Dispatcher"), self._serviceMngr,
             scheduler(self.logger(self._scheduler["logName"]), self._scheduler), self.flowIdleTimeout * 2)
 
-        for dpid, edge in self._edges.items():
-            self.log.info("Switch {} -> {}".format(dpid, edge))
+        for dpid, sw in self._switches.items():
+            for edge in sw.edges:
+                self.log.info("Switch {} -> {}".format(dpid, edge))
 
     def connect(self, of: OpenFlow):
 
@@ -177,10 +176,10 @@ class EdgeController:
 
             # get data about all services from the attached clusters
             #
-            for dpid in self._switches:
-                edge = self._edges.get(dpid)
-                if edge and edge.cluster:
-                    self._serviceMngr.initServices(edge)
+            for dpid, sw in self._switches.items():
+                for edge in sw.edges:
+                    if edge and edge.cluster:
+                        self._serviceMngr.initServices(edge)
 
             self.log.info("")
             self.log.info("")
@@ -264,4 +263,3 @@ class EdgeController:
                 for edgeCfg in switchCfg['edges']:
                     edge = Edge(edgeCfg['ip'], switch, edgeCfg.get('target'), edgeCfg['serviceCidr'])
                     switch.edges.append(edge)
-                    self._edges[dpid] = edge  # REVIEW Store only in Switch object?

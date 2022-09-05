@@ -49,7 +49,7 @@ class EdgeDispatcher:
 
             # REVIEW: If edge is different, we would need to route it to the other switch first (destMac = switch).
 
-            service, edges = self._serviceMngr.availServers(dpid, dst)  # running instances available?
+            service, edges = self._serviceMngr.availServers(dst)  # running instances available?
             if not service:
                 service = self._serviceMngr.service(dst)
             edge, numRunningInstances = self._scheduler.schedule(dpid, service, edges)

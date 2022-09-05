@@ -7,7 +7,6 @@ from util.Service import Deployment, ServiceInstance, Service
 from util.IPAddr import IPAddr
 from util.TinyServiceTrie import TinyServiceTrie
 from util.Performance import PerfCounter
-from util.RyuDPID import DPID
 
 import os
 import glob
@@ -20,12 +19,10 @@ class ServiceManager:
 
     # REVIEW Might have to be synchronized due to parallel access.
 
-    def __init__(self, log, switches: Switches, edges: dict[DPID, Edge], clusterGlob: str, servicesGlob: str,
-                 servicesDir: str):
+    def __init__(self, log, switches: Switches, clusterGlob: str, servicesGlob: str, servicesDir: str):
 
         self.log = log
         self._switches = switches
-        self._edges = edges
         self._services: TinyServiceTrie = TinyServiceTrie(servicesDir)
 
         self.loadClusters(clusterGlob)
@@ -41,7 +38,13 @@ class ServiceManager:
         return self._services.uniquePrefix(ip)
 
     def isServer(self, dpid, addr: SocketAddr):
-        return dpid in self._edges and addr in self._edges[dpid].eServices
+
+        switch = self._switches.get(dpid)
+        if switch:
+            for edge in switch.edges:  # REVIEW Inefficient data structure for search (but method is rarely used)
+                if addr in edge.eServices:
+                    return True
+        return False
 
     def service(self, addr: SocketAddr):
         return self._services.get(addr)
@@ -56,14 +59,12 @@ class ServiceManager:
             apiServer, clusterType = clusterName.split("-")  # clusterType after '-'
             edgeIP = apiServer.split(":")[0]
 
-            switch = None
-            for dpid, edge in self._edges.items():
-                if edge.ip == IPAddr(edgeIP):
-                    switch = dpid
-                    break
+            for _, sw in self._switches.items():
+                for edge in sw.edges:
+                    if edge.ip == IPAddr(edgeIP):
 
-            if not switch is None:  # included in the current configuration?
-                edge.cluster = Cluster.init(clusterType, apiServer, filename)
+                        edge.cluster = Cluster.init(clusterType, apiServer, filename)
+                        break
 
     def loadServices(self, servicesGlob):
 
@@ -136,7 +137,7 @@ class ServiceManager:
 
         return None
 
-    def availServers(self, dpid, addr: SocketAddr) -> tuple[Service, list[Edge, int]]:
+    def availServers(self, addr: SocketAddr) -> tuple[Service, list[Edge, int]]:
         """
         :returns: A list of edges with the number of running instances in it.
         """
@@ -144,26 +145,27 @@ class ServiceManager:
         result = []
         service = None
 
-        for switch, edge in self._edges.items():
+        for _, switch in self._switches.items():
+            for edge in switch.edges:
 
-            # find a server that hosts (or may host) the required service
-            #
-            svc = edge.vServices.get(addr)
-            if svc is not None:  # we found a running instance
+                # find a server that hosts (or may host) the required service
+                #
+                svc = edge.vServices.get(addr)
+                if svc is not None:  # we found a running instance
 
-                service = svc.service  # if we found an instance -> return it (performance)
+                    service = svc.service  # if we found an instance -> return it (performance)
 
-                if svc.edgeIP in self._switches[switch].hosts:
-                    result.append((edge, 1))
+                    if svc.edgeIP in switch.hosts:
+                        result.append((edge, 1))
+                    else:
+                        log.warn("Server {} not available at switch {}".format(svc.edgeIP, switch.dpid))
+                        log.debug(switch.hosts)
                 else:
-                    log.warn("Server {} not available at switch {}".format(svc.edgeIP, dpid))
-                    log.debug(self._switches.hosts)
-            else:
-                if edge.cluster and edge.cluster._ip and edge.cluster._ip in self._switches[switch].hosts:
-                    result.append((edge, 0))
+                    if edge.cluster and edge.cluster._ip and edge.cluster._ip in switch.hosts:
+                        result.append((edge, 0))
 
-                elif edge.cluster and edge.cluster._ip:
-                    log.warn("Cluster {} not available at switch {}".format(edge.cluster._ip, dpid))
-                    log.debug(self._switches.hosts)
+                    elif edge.cluster and edge.cluster._ip:
+                        log.warn("Cluster {} not available at switch {}".format(edge.cluster._ip, switch.dpid))
+                        log.debug(switch.hosts)
 
         return service, result
