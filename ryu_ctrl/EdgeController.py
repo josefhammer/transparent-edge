@@ -262,6 +262,6 @@ class EdgeController:
                 self._switches[dpid] = switch
 
                 for edgeCfg in switchCfg['edges']:
-                    edge = Edge(edgeCfg['ip'], dpid, edgeCfg.get('target'), edgeCfg['serviceCidr'])
+                    edge = Edge(edgeCfg['ip'], switch, edgeCfg.get('target'), edgeCfg['serviceCidr'])
                     switch.edges.append(edge)
                     self._edges[dpid] = edge  # REVIEW Store only in Switch object?

@@ -120,18 +120,22 @@ class Edge(object):
     Contains all the data for one edge location.
     """
 
-    def __init__(self, ip, dpid, target: str, serviceCidr=[]):
+    def __init__(self, ip, switch, target: str, serviceCidr=[]):
 
         assert isinstance(serviceCidr, list)
 
         self.ip = IPAddr(ip)
-        self.dpid = DPID(dpid)  # each edge is connected to a single switch
+        self.switch = switch  # each edge is connected to a single switch
         self.target = "pod" if target is None else target  # pod | cluster | exposed
         self.serviceCidr = serviceCidr
         self.cluster = None
 
         self.vServices = {}  # SocketAddr -> ServiceInstance
         self.eServices = {}  # SocketAddr -> ServiceInstance
+
+    @property
+    def dpid(self):
+        return self.switch.dpid
 
     def __eq__(self, other):
         if (isinstance(other, Edge)):
