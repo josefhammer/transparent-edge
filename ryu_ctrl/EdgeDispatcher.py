@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from util.MemoryEntry import MemoryEntry, Memory
 from util.SocketAddr import SocketAddr
-from util.Service import Service
-from util.EdgeTools import Edge, Switch, Switches
+from util.EdgeTools import Switch
 from util.RyuDPID import DPID
 from .ServiceManager import ServiceManager
 
@@ -15,11 +14,10 @@ class EdgeDispatcher:
 
     # REVIEW Might have to be synchronized due to parallel access.
 
-    def __init__(self, log, serviceMngr: ServiceManager, switches: Switches, scheduler, memIdleTimeout=10):
+    def __init__(self, log, serviceMngr: ServiceManager, scheduler, memIdleTimeout=10):
 
         self.log = log
         self._serviceMngr = serviceMngr
-        self._switches = switches
         self._scheduler = scheduler
 
         # Remember the locations of the clients to detect client movement
@@ -69,7 +67,7 @@ class EdgeDispatcher:
                     log.warn("Could not instantiate service {} at edge {}.".format(dst, edge.ip))
                     return None
 
-            edge = SocketAddr(svc.eAddr.ip, svc.eAddr.port, self._switches[edge.dpid].hosts[svc.edgeIP].mac)
+            edge = SocketAddr(svc.eAddr.ip, svc.eAddr.port, edge.switch.hosts[svc.edgeIP].mac)
 
             entry = MemoryEntry(src, dst, edge)
             self.memory.add(entry)
