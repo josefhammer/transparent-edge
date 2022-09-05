@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from .Context import Context
 from util.Cluster import Cluster
 from util.EdgeTools import Edge
 from util.SocketAddr import SocketAddr
@@ -21,10 +20,8 @@ class ServiceManager:
 
     # REVIEW Might have to be synchronized due to parallel access.
 
-    def __init__(self, context: Context, log, edges: dict[DPID, Edge], clusterGlob: str, servicesGlob: str,
-                 servicesDir: str):
+    def __init__(self, log, edges: dict[DPID, Edge], clusterGlob: str, servicesGlob: str, servicesDir: str):
 
-        self.ctx = context
         self.log = log
         self._edges = edges
         self._services: TinyServiceTrie = TinyServiceTrie(servicesDir)

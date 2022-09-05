@@ -1,7 +1,6 @@
 # (c) 2022 Josef Hammer (josef.hammer@aau.at)
 #
 from util.RyuOpenFlow import OpenFlow
-from .Context import Context
 
 
 class PortTracker:
@@ -11,7 +10,7 @@ class PortTracker:
     Does NOT track hosts -- the MAC address might be a gateway address only.
     """
 
-    def __init__(self, context: Context, log):
+    def __init__(self, log):
 
         self.log = log
 

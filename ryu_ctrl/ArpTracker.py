@@ -6,7 +6,6 @@ and the corresponding switch ports.
 """
 
 from util.RyuOpenFlow import OpenFlow
-from .Context import Context
 from util.IPAddr import IPAddr
 from util.EdgeTools import Host, HostTable
 
@@ -16,17 +15,8 @@ class ArpTracker(object):
     Does NOT clear the table!
     """
 
-    def __init__(self,
-                 context: Context,
-                 log,
-                 hostTable: HostTable,
-                 tableID,
-                 srcMac,
-                 installFlow=False,
-                 fwdTable=None,
-                 flowPriority=3):
+    def __init__(self, log, hostTable: HostTable, tableID, srcMac, installFlow=False, fwdTable=None, flowPriority=3):
 
-        self.ctx = context
         self.hosts = hostTable
         self.log = log
         self.table = tableID

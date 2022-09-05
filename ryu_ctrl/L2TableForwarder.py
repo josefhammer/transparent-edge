@@ -17,7 +17,6 @@ If no, flood on all ports.
 """
 
 from util.RyuOpenFlow import OpenFlow
-from .Context import Context
 
 
 class L2TableForwarder:
@@ -28,9 +27,8 @@ class L2TableForwarder:
     Table 2: Destination MACs with out_ports already known.
     """
 
-    def __init__(self, context: Context, log, table1ID, table2ID, flowIdleTimeout=10):
+    def __init__(self, log, table1ID, table2ID, flowIdleTimeout=10):
 
-        self.ctx = context
         self.log = log
         self.table1 = table1ID
         self.table2 = table2ID

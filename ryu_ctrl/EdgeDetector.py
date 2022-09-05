@@ -1,8 +1,8 @@
+from .ServiceManager import ServiceManager
 from util.IPAddr import IPAddr
 from util.SocketAddr import SocketAddr
 from util.RyuOpenFlow import OpenFlow
 from util.Stats import Stats
-from .Context import Context
 from logging import DEBUG, INFO
 
 
@@ -12,8 +12,8 @@ class EdgeDetector:
     """
 
     def __init__(self,
-                 context: Context,
                  log,
+                 serviceMngr: ServiceManager,
                  preSelectTableID,
                  tableID,
                  userTableID,
@@ -21,8 +21,8 @@ class EdgeDetector:
                  useUniqueMask,
                  flowIdleTimeout=10):
 
-        self.ctx = context
         self.log = log
+        self._serviceMngr = serviceMngr
         self.preSelectTable = preSelectTableID
         self.table = tableID
         self.userTable = userTableID
@@ -122,7 +122,7 @@ class EdgeDetector:
 
         # Main goal: Make the switching of regular traffic as fast as possible.
 
-        if self.ctx.serviceMngr.isService(dst):
+        if self._serviceMngr.isService(dst):
 
             if self.isInfoLogLevel:
                 log.info("-> {}".format(dst))
@@ -165,7 +165,7 @@ class EdgeDetector:
         # 194.232.104.150, uniquePrefix=24:                     mask = 11111111.11111111.11111111.00000000
         # 194.232.104.150, uniquePrefix=24, prefixes=[8]:       mask = 00000001.00000000.00000001.00000000
         #
-        uniquePrefix, prefixes = self.ctx.serviceMngr.uniquePrefix(dst.ip)
+        uniquePrefix, prefixes = self._serviceMngr.uniquePrefix(dst.ip)
         match = of.Match()
 
         # if not a ServiceIP then the port does not matter (to reduce the number of OpenFlow rules)

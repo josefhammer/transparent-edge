@@ -1,5 +1,5 @@
+from .ServiceManager import ServiceManager
 from .EdgeDispatcher import EdgeDispatcher
-from .Context import Context
 from util.SocketAddr import SocketAddr
 from util.RyuOpenFlow import OpenFlow, Packet
 from util.Stats import Stats
@@ -11,10 +11,16 @@ class EdgeRedirector:
     Redirects requests for registered services to edge nodes.
     """
 
-    def __init__(self, context: Context, log, dispatcher: EdgeDispatcher, tableID, defaultTableID, flowIdleTimeout=10):
+    def __init__(self,
+                 log,
+                 serviceMngr: ServiceManager,
+                 dispatcher: EdgeDispatcher,
+                 tableID,
+                 defaultTableID,
+                 flowIdleTimeout=10):
 
-        self.ctx = context
         self.log = log
+        self._serviceMngr: ServiceManager = serviceMngr
         self.dispatcher = dispatcher
         self.table = tableID
         self.defaultTable = defaultTableID
@@ -47,12 +53,12 @@ class EdgeRedirector:
         src = of.src
         dst = of.dst
 
-        if of.isEdge or self.ctx.serviceMngr.isService(dst):  # isEdge: Avoid searching twice
+        if of.isEdge or self._serviceMngr.isService(dst):  # isEdge: Avoid searching twice
 
             if self.fwdToEdge(self.log, of, of.packet(), src, dst):
                 return
 
-        elif self.ctx.serviceMngr.isServer(of.dpid, src):
+        elif self._serviceMngr.isServer(of.dpid, src):
 
             if self.fwdFromEdge(self.log, of, of.packet(), src, dst):
                 return

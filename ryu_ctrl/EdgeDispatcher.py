@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from util.MemoryEntry import MemoryEntry, Memory
 from util.SocketAddr import SocketAddr
-from util.Service import ServiceInstance, Service
+from util.Service import Service
 from util.EdgeTools import Edge, Switch, SwitchTable
 from util.RyuDPID import DPID
-from .Context import Context
+from .ServiceManager import ServiceManager
 
 
 class EdgeDispatcher:
@@ -16,15 +16,15 @@ class EdgeDispatcher:
     # REVIEW Might have to be synchronized due to parallel access.
 
     def __init__(self,
-                 context: Context,
                  log,
+                 serviceMngr: ServiceManager,
                  switchTable: SwitchTable,
                  edges: dict[DPID, Edge],
                  scheduler,
                  memIdleTimeout=10):
 
-        self.ctx = context
         self.log = log
+        self._serviceMngr = serviceMngr
         self._hosts = switchTable
         self._edges = edges
         self._scheduler = scheduler
@@ -60,7 +60,7 @@ class EdgeDispatcher:
 
             service, edges = self._availServers(dpid, dst)  # running instances available?
             if not service:
-                service = self.ctx.serviceMngr.service(dst)
+                service = self._serviceMngr.service(dst)
             edge, numRunningInstances = self._scheduler.schedule(dpid, service, edges)
 
             if numRunningInstances:
@@ -70,7 +70,7 @@ class EdgeDispatcher:
                     log.warn("No server found for service {} at switch {}.".format(dst, dpid))
                     return None
 
-                svc = self.ctx.serviceMngr.deployService(edge, dst)  # try to deploy an instance
+                svc = self._serviceMngr.deployService(edge, dst)  # try to deploy an instance
 
                 if not svc:
                     log.warn("Could not instantiate service {} at edge {}.".format(dst, edge.ip))
