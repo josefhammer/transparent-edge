@@ -63,6 +63,7 @@ class EdgeController:
 
         self._serviceMngr = ServiceManager(
             self.logger("ServiceMngr"),
+            self._switches,
             self._edges,
             clusterGlob=self._clusterGlob,
             servicesGlob=self._servicesGlob,
@@ -75,7 +76,7 @@ class EdgeController:
         scheduler = getattr(schedulerModule, className)
 
         self.dispatcher = EdgeDispatcher(
-            self.logger("Dispatcher"), self._serviceMngr, self._switches, self._edges,
+            self.logger("Dispatcher"), self._serviceMngr, self._switches,
             scheduler(self.logger(self._scheduler["logName"]), self._scheduler), self.flowIdleTimeout * 2)
 
         for dpid, edge in self._edges.items():

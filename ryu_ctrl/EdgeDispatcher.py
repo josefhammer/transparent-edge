@@ -15,18 +15,11 @@ class EdgeDispatcher:
 
     # REVIEW Might have to be synchronized due to parallel access.
 
-    def __init__(self,
-                 log,
-                 serviceMngr: ServiceManager,
-                 switches: Switches,
-                 edges: dict[DPID, Edge],
-                 scheduler,
-                 memIdleTimeout=10):
+    def __init__(self, log, serviceMngr: ServiceManager, switches: Switches, scheduler, memIdleTimeout=10):
 
         self.log = log
         self._serviceMngr = serviceMngr
         self._switches = switches
-        self._edges = edges
         self._scheduler = scheduler
 
         # Remember the locations of the clients to detect client movement
@@ -58,7 +51,7 @@ class EdgeDispatcher:
 
             # REVIEW: If edge is different, we would need to route it to the other switch first (destMac = switch).
 
-            service, edges = self._availServers(dpid, dst)  # running instances available?
+            service, edges = self._serviceMngr.availServers(dpid, dst)  # running instances available?
             if not service:
                 service = self._serviceMngr.service(dst)
             edge, numRunningInstances = self._scheduler.schedule(dpid, service, edges)
@@ -127,35 +120,3 @@ class EdgeDispatcher:
         self.locations[ip] = dpid
         log.debug("Location: {} @ {}".format(ip, dpid))
         return prev
-
-    def _availServers(self, dpid, addr: SocketAddr) -> tuple[Service, list[Edge, int]]:
-        """
-        :returns: A list of edges with the number of running instances in it.
-        """
-        log = self.log
-        result = []
-        service = None
-
-        for switch, edge in self._edges.items():
-
-            # find a server that hosts (or may host) the required service
-            #
-            svc = edge.vServices.get(addr)
-            if svc is not None:  # we found a running instance
-
-                service = svc.service  # if we found an instance -> return it (performance)
-
-                if svc.edgeIP in self._switches[switch].hosts:
-                    result.append((edge, 1))
-                else:
-                    log.warn("Server {} not available at switch {}".format(svc.edgeIP, dpid))
-                    log.debug(self._switches.hosts)
-            else:
-                if edge.cluster and edge.cluster._ip and edge.cluster._ip in self._switches[switch].hosts:
-                    result.append((edge, 0))
-
-                elif edge.cluster and edge.cluster._ip:
-                    log.warn("Cluster {} not available at switch {}".format(edge.cluster._ip, dpid))
-                    log.debug(self._switches.hosts)
-
-        return service, result
