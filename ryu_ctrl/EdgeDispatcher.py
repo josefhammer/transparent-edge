@@ -3,7 +3,7 @@ from __future__ import annotations
 from util.MemoryEntry import MemoryEntry, Memory
 from util.SocketAddr import SocketAddr
 from util.Service import Service
-from util.EdgeTools import Edge, Switch, SwitchTable
+from util.EdgeTools import Edge, Switch, Switches
 from util.RyuDPID import DPID
 from .ServiceManager import ServiceManager
 
@@ -18,14 +18,14 @@ class EdgeDispatcher:
     def __init__(self,
                  log,
                  serviceMngr: ServiceManager,
-                 switchTable: SwitchTable,
+                 switches: Switches,
                  edges: dict[DPID, Edge],
                  scheduler,
                  memIdleTimeout=10):
 
         self.log = log
         self._serviceMngr = serviceMngr
-        self._hosts = switchTable
+        self._switches = switches
         self._edges = edges
         self._scheduler = scheduler
 
@@ -76,7 +76,7 @@ class EdgeDispatcher:
                     log.warn("Could not instantiate service {} at edge {}.".format(dst, edge.ip))
                     return None
 
-            edge = SocketAddr(svc.eAddr.ip, svc.eAddr.port, self._hosts[edge.dpid][svc.edgeIP].mac)
+            edge = SocketAddr(svc.eAddr.ip, svc.eAddr.port, self._switches[edge.dpid].hosts[svc.edgeIP].mac)
 
             entry = MemoryEntry(src, dst, edge)
             self.memory.add(entry)
@@ -145,17 +145,17 @@ class EdgeDispatcher:
 
                 service = svc.service  # if we found an instance -> return it (performance)
 
-                if svc.edgeIP in self._hosts[switch]:
+                if svc.edgeIP in self._switches[switch].hosts:
                     result.append((edge, 1))
                 else:
                     log.warn("Server {} not available at switch {}".format(svc.edgeIP, dpid))
-                    log.debug(self._hosts)
+                    log.debug(self._switches.hosts)
             else:
-                if edge.cluster and edge.cluster._ip and edge.cluster._ip in self._hosts[switch]:
+                if edge.cluster and edge.cluster._ip and edge.cluster._ip in self._switches[switch].hosts:
                     result.append((edge, 0))
 
                 elif edge.cluster and edge.cluster._ip:
                     log.warn("Cluster {} not available at switch {}".format(edge.cluster._ip, dpid))
-                    log.debug(self._hosts)
+                    log.debug(self._switches.hosts)
 
         return service, result

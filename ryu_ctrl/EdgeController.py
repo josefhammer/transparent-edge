@@ -9,7 +9,7 @@ from .EdgeRedirector import EdgeRedirector
 from util.RyuOpenFlow import OpenFlow
 from util.RyuDPID import DPID
 
-from util.EdgeTools import Edge, Switches, SwitchTable, HostTable, Switch
+from util.EdgeTools import Edge, Switches, Switch
 from util.IPAddr import IPAddr
 from util.Performance import PerfCounter
 
@@ -39,7 +39,6 @@ class EdgeController:
         self.forwarders = {}
         self.ofPerSwitch = {}
         self._switches = Switches()
-        self._hosts = SwitchTable()
         self._edges: dict[DPID, Edge] = {}
 
         # Load configuration
@@ -76,7 +75,7 @@ class EdgeController:
         scheduler = getattr(schedulerModule, className)
 
         self.dispatcher = EdgeDispatcher(
-            self.logger("Dispatcher"), self._serviceMngr, self._hosts, self._edges,
+            self.logger("Dispatcher"), self._serviceMngr, self._switches, self._edges,
             scheduler(self.logger(self._scheduler["logName"]), self._scheduler), self.flowIdleTimeout * 2)
 
         for dpid, edge in self._edges.items():
@@ -103,10 +102,6 @@ class EdgeController:
 
         elif dpid in self._switches:  # we only care about configured switches
             self.log.info("{} connected.".format(dpid))
-
-            hostTable = self._hosts.get(dpid)
-            if hostTable is None:
-                self._hosts[dpid] = hostTable = HostTable()
 
             fwds = []
             fwds.append(
@@ -136,7 +131,6 @@ class EdgeController:
             fwds.append(
                 ArpTracker(
                     self.logger("ArpTracker", dpid),
-                    hostTable,
                     self.PRESELECT_TABLE,
                     srcMac=self.arpSrcMac,
                     installFlow=True,

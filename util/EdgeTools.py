@@ -54,25 +54,6 @@ class HostTable(dict):
         return str(self.values())
 
 
-class SwitchTable(dict):
-    """ 
-    Dict: DPID -> HostTable
-    """
-
-    def __setitem__(self, key, val):
-        if not isinstance(val, HostTable):
-            val = HostTable(val)
-        if not isinstance(key, DPID):
-            key = DPID(key)
-        dict.__setitem__(self, key, val)
-
-    def __delitem__(self, key):
-        dict.__delitem__(self, key)
-
-    def __str__(self):
-        return "{" + ', '.join(['%s: %s' % (key, value) for (key, value) in self.items()]) + "}"
-
-
 class Switch(object):
     """
     Tuple: name, mac, [ports], vMac
@@ -87,6 +68,7 @@ class Switch(object):
         self.vMac = None  # the virtual MAC address to be used for ServiceIDs
         self.mac2port = {}  # MAC -> outport
         self.edges = []
+        self.hosts = HostTable()
 
         self.name = self.mac = self.ports = None  # initialized in self.init(ports)
 

@@ -7,7 +7,7 @@ and the corresponding switch ports.
 
 from util.RyuOpenFlow import OpenFlow
 from util.IPAddr import IPAddr
-from util.EdgeTools import Host, HostTable
+from util.EdgeTools import Host
 
 
 class ArpTracker(object):
@@ -15,9 +15,8 @@ class ArpTracker(object):
     Does NOT clear the table!
     """
 
-    def __init__(self, log, hostTable: HostTable, tableID, srcMac, installFlow=False, fwdTable=None, flowPriority=3):
+    def __init__(self, log, tableID, srcMac, installFlow=False, fwdTable=None, flowPriority=3):
 
-        self.hosts = hostTable
         self.log = log
         self.table = tableID
         self.srcMac = srcMac
@@ -67,7 +66,7 @@ class ArpTracker(object):
             # we add our own MAC address manually.
             #
             if edge.ip == switch.gateway:
-                self._setArp(self.log, dpid=of.dpid, eth_src=switch.mac, ip_src=switch.gateway)
+                self._setArp(self.log, of.dpid, switch.hosts, eth_src=switch.mac, ip_src=switch.gateway)
 
     def packetIn(self, of: OpenFlow):
         # Note: arp.hwsrc is not necessarily equal to ethernet.src
@@ -90,14 +89,13 @@ class ArpTracker(object):
         if arp.proto == of.ETH_TYPE_IP:
             if arp.hwtype == of.ARP_HW_TYPE_ETHERNET:
                 if arp.src_ip != 0:
-                    self._setArp(log, dpid=of.dpid, eth_src=arp.src_mac, ip_src=arp.src_ip)
+                    self._setArp(log, of.dpid, of.switch.hosts, eth_src=arp.src_mac, ip_src=arp.src_ip)
 
-    def _setArp(self, log, dpid, eth_src, ip_src):
+    def _setArp(self, log, dpid, swHosts, eth_src, ip_src):
         #
         # Adds or updates an Arp entry
         #
         ip_src = IPAddr(ip_src)
-        swHosts = self.hosts
         newHost = Host(ip_src, eth_src)
 
         if ip_src not in swHosts:
