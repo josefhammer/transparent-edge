@@ -49,6 +49,7 @@ class Switch(object):
         self.mac2port = {}  # MAC -> outport
         self.hosts = {}  # IPAddr -> Host
         self.edges = []
+        self.listeners = []
 
         self.name = self.mac = self.ports = None  # initialized in self.init(ports)
 

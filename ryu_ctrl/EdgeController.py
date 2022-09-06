@@ -36,7 +36,6 @@ class EdgeController:
         # Log startup time for debugging purposes
         self.log.info(datetime.now().strftime("%Y-%m-%d %H:%M"))
 
-        self.forwarders = {}
         self.ofPerSwitch = {}
         self._switches = Switches()
 
@@ -88,22 +87,19 @@ class EdgeController:
         switch = self._switches.get(dpid)
         if switch is None:  # configured switches only
             return
-        of.switch = switch
+        of.switch = switch  # look it up only once per request (not in every module)
 
         # Do we already have a forwarder for this switch?
         #
         # REVIEW: Is it safe to reconnect without setting up the default forwarding rules again?
         #
-        if dpid in self.forwarders:
+        if len(switch.listeners):
             self.log.warn("Reconnected {}".format(dpid))
 
-        # REVIEW Necessary / useful?
-        # elif dpid not in self.servers:
-
-        elif dpid in self._switches:  # we only care about configured switches
+        else:
             self.log.info("{} connected.".format(dpid))
 
-            fwds = []
+            fwds = switch.listeners
             fwds.append(
                 EdgeDetector(
                     self.logger("Detect", dpid),
@@ -137,12 +133,9 @@ class EdgeController:
                     fwdTable=self.DEFAULT_TABLE))
             fwds.append(PortTracker(self.logger("PortTracker", dpid)))
 
-            self.forwarders[dpid] = fwds
-
             # forward call to all forwarders
             #
-            of.switch = self._switches[dpid]  # look it up only once per request (not in every module)
-            for fwd in self.forwarders[dpid]:
+            for fwd in fwds:
                 fwd.connect(of)
 
         of.BarrierRequest().send()  # send barrier before we start to listen (just to be safe)
@@ -169,8 +162,8 @@ class EdgeController:
             # Now all forwarders should be able to retrieve responses for their network requests.
             # Otherwise, an intermediate switch might not be able yet to forward them correctly.
             #
-            for dpid in self._switches:
-                for fwd in self.forwarders[dpid]:
+            for dpid, sw in self._switches.items():
+                for fwd in sw.listeners:
                     fwd.connected(self.ofPerSwitch[dpid])
             self.ofPerSwitch = {}  # not required anymore
 
@@ -196,7 +189,7 @@ class EdgeController:
         perf = PerfCounter()
         of.switch = self._switches[of.dpid]  # look it up only once per request (not in every module)
 
-        for fwd in self.forwarders[of.dpid]:
+        for fwd in switch.listeners:
             fwd.packetIn(of)
             perf.lap()
 
