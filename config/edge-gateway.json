@@ -1,0 +1,30 @@
+{
+    "switches": {
+        "1": {
+            "gateway": "10.0.0.1",
+            "edges": []
+        },
+        "3": {
+            "gateway": "10.0.0.1",
+            "edges": [
+                {
+                    "ip": "10.0.0.1",
+                    "target": "cluster",
+                    "_scheduler": "discc",
+                    "serviceCidr": [
+                        "10.244.2.0/24",
+                        "172.16.0.0/12",
+                        "10.96.0.0/12"
+                    ]
+                }
+            ]
+        }
+    },
+    "arpSrcMac": "02:00:00:00:00:ff",
+    "flowIdleTimeout": 5,
+    "useUniqueMask": true,
+    "scheduler": {
+        "class": "ryu_ctrl.ProximityScheduler.ProximityScheduler",
+        "logName": "ProxScheduler"
+    }
+}
