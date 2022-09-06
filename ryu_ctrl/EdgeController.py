@@ -1,5 +1,5 @@
 from .ArpTracker import ArpTracker
-from .EdgeDispatcher import EdgeDispatcher
+from .Dispatcher import Dispatcher
 from .EdgeDetector import EdgeDetector
 from .PortTracker import PortTracker
 from .L2TableForwarder import L2TableForwarder
@@ -73,7 +73,7 @@ class EdgeController:
         schedulerModule = __import__(moduleName, fromlist=[className])
         scheduler = getattr(schedulerModule, className)
 
-        self.dispatcher = EdgeDispatcher(
+        self.dispatcher = Dispatcher(
             self.logger("Dispatcher"), self._serviceMngr,
             scheduler(self.logger(self._scheduler["logName"]), self._scheduler), self.flowIdleTimeout * 2)
 

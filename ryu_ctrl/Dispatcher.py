@@ -7,7 +7,7 @@ from util.RyuDPID import DPID
 from .ServiceManager import ServiceManager
 
 
-class EdgeDispatcher:
+class Dispatcher:
     """
     Selects the ideal edge server for a given request to a edge service.
     """

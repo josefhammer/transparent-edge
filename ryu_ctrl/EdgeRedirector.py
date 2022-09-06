@@ -1,5 +1,5 @@
 from .ServiceManager import ServiceManager
-from .EdgeDispatcher import EdgeDispatcher
+from .Dispatcher import Dispatcher
 from util.SocketAddr import SocketAddr
 from util.RyuOpenFlow import OpenFlow, Packet
 from util.Stats import Stats
@@ -14,7 +14,7 @@ class EdgeRedirector:
     def __init__(self,
                  log,
                  serviceMngr: ServiceManager,
-                 dispatcher: EdgeDispatcher,
+                 dispatcher: Dispatcher,
                  tableID,
                  defaultTableID,
                  flowIdleTimeout=10):
