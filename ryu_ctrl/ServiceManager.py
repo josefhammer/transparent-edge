@@ -125,7 +125,7 @@ class ServiceManager:
     def deployService(self, edge: Edge, vAddr: SocketAddr):
 
         service = Cluster.initService(label=self._services[vAddr].label, filename=self._services.serviceFilename(vAddr))
-        service.annotate()
+        service.annotate(edge.schedulerName)
 
         perf = PerfCounter()
         svcInstance = edge.cluster.deployService(service, edge.target)

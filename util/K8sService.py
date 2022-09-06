@@ -37,17 +37,22 @@ class K8sService(object):
             self.yaml = yml
         self._parseYaml(self.yaml)
 
-    def annotate(self):
+    def annotate(self, schedulerName: str = None):
 
         assert (self.yaml is not None)
         for item in self.yaml:
             #
-            # set unique label to be able to query it
+            # set unique label to be able to query both service and deployment
             #
             self._addLabel(item)
 
             if item.get("kind") == "Deployment":
                 self._addLabel(item["spec"]["template"])  # must be available
+
+                # set schedulerName in case we want a local intra-cluster scheduler for this service
+                #
+                if schedulerName:
+                    item["spec"]["template"]["spec"]["schedulerName"] = schedulerName
 
     def _addLabel(self, item):
         item.setdefault("metadata", {}).setdefault("labels", {})[K8sService.LABEL_NAME] = self.label

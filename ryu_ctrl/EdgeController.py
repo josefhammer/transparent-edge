@@ -261,5 +261,6 @@ class EdgeController:
                 self._switches[dpid] = switch
 
                 for edgeCfg in switchCfg['edges']:
-                    edge = Edge(edgeCfg['ip'], switch, edgeCfg.get('target'), edgeCfg['serviceCidr'])
+                    edge = Edge(edgeCfg['ip'], switch, edgeCfg.get('target'), edgeCfg['serviceCidr'],
+                                edgeCfg.get('scheduler'))
                     switch.edges.append(edge)
