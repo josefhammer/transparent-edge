@@ -34,26 +34,6 @@ class Host(object):
         return "{} ({})".format(str(self.ip), self.mac)
 
 
-class HostTable(dict):
-    """ 
-    Dict: IPAddr -> Host
-    """
-
-    def __setitem__(self, key, val):
-        if not isinstance(val, Host):
-            val = Host(val)
-        if not isinstance(key, IPAddr):
-            key = IPAddr(key)
-        assert key == val.ip
-        dict.__setitem__(self, key, val)
-
-    def __delitem__(self, key):
-        dict.__delitem__(self, key)
-
-    def __repr__(self):
-        return str(self.values())
-
-
 class Switch(object):
     """
     Tuple: name, mac, [ports], vMac
@@ -67,8 +47,8 @@ class Switch(object):
         self.gateway: IPAddr = gateway
         self.vMac = None  # the virtual MAC address to be used for ServiceIDs
         self.mac2port = {}  # MAC -> outport
+        self.hosts = {}  # IPAddr -> Host
         self.edges = []
-        self.hosts = HostTable()
 
         self.name = self.mac = self.ports = None  # initialized in self.init(ports)
 
