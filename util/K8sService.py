@@ -67,7 +67,7 @@ class K8sService(object):
 
         service = Service(vAddr=None, label=self.label)
 
-        service.vAddr = SocketAddr(IPAddr.get_ipv4_by_hostname(service.domain())[0], self.port)
+        service.vAddr = SocketAddr(IPAddr.get_ipv4_by_hostname(service.domain)[0], self.port)
 
         # Return only service if no instance is known/available
         #

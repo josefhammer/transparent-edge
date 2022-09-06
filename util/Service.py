@@ -20,10 +20,12 @@ class Service(object):
         self.vAddr = vAddr
         self.label = label
 
-    def domain(self):  # REVIEW property?
+    @property
+    def domain(self):
         return '.'.join(reversed(self.label.split('.')[:-1]))  # remove last part (= name) and reverse the others
 
-    def name(self):  # REVIEW property?
+    @property
+    def name(self):
         return self.label.rsplit('.', 1)[1]
 
     @staticmethod
