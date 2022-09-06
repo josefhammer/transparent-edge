@@ -15,10 +15,14 @@ class Service(object):
     Contains the data about a virtual service.
     """
 
-    def __init__(self, vAddr: SocketAddr, label):
+    def __init__(self, vAddr: SocketAddr, label, port: int = None):
 
         self.vAddr = vAddr
         self.label = label
+
+        if (vAddr is None) and (not label is None) and (not port is None):
+
+            self.vAddr = SocketAddr(IPAddr.get_ipv4_by_hostname(self.domain)[0], port)
 
     @property
     def domain(self):
@@ -30,7 +34,11 @@ class Service(object):
 
     @staticmethod
     def labelFromServiceFilename(filename) -> str:
-        return os.path.splitext(os.path.basename(filename))[0]
+        return os.path.basename(filename).rsplit('.', 2)[0]  # [label, port, extension]
+
+    @staticmethod
+    def portFromServiceFilename(filename) -> int:
+        return int(os.path.basename(filename).rsplit('.', 2)[1])  # [label, port, extension]
 
     def __eq__(self, other):
         if (isinstance(other, Service)):

@@ -14,10 +14,10 @@ class K8sService(object):
     """
     LABEL_NAME = "edge.service"
 
-    def __init__(self, label=None, filename=None, yml: dict = None):
+    def __init__(self, label=None, port=None, filename=None, yml: dict = None):
 
         self.label = label
-        self.port = None
+        self.port = port
         self.nodePort = None
         self.podPort = None
         self.clusterIP = None
@@ -27,8 +27,13 @@ class K8sService(object):
         self.containsService = False
         self.containsDeployment = False
 
-        if label is None and not filename is None:
-            self.label = Service.labelFromServiceFilename(filename)
+        # NOTE: info from filename has precedence over yaml
+        #
+        if not filename is None:
+            if self.label is None:
+                self.label = Service.labelFromServiceFilename(filename)
+            if self.port is None:
+                self.port = Service.portFromServiceFilename(filename)
 
         assert (filename is not None or yml is not None)  # only one of both allowed
         if filename is not None:
@@ -65,9 +70,7 @@ class K8sService(object):
             print("missing label")
             return None
 
-        service = Service(vAddr=None, label=self.label)
-
-        service.vAddr = SocketAddr(IPAddr.get_ipv4_by_hostname(service.domain)[0], self.port)
+        service = Service(vAddr=None, label=self.label, port=self.port)
 
         # Return only service if no instance is known/available
         #
@@ -116,7 +119,8 @@ class K8sService(object):
 
         # read label (if available)
         #
-        self.label = self._get(yml, "metadata", "labels", {}).get(K8sService.LABEL_NAME, self.label)
+        if self.label is None:
+            self.label = self._get(yml, "metadata", "labels", {}).get(K8sService.LABEL_NAME, self.label)
 
         # read type (if available)
         #
@@ -130,7 +134,10 @@ class K8sService(object):
         #
         ports = self._get(yml, "spec", "ports", [])
         for port in ports:
-            self.port = port.get("port")
+            if self.port is None:
+                self.port = port.get("port")
+            else:
+                assert self.port == port.get("port")
             self.nodePort = port.get('node_port')  # 'nodePort' when exported via kubectl
 
             # K8s: If targetPort is not defined, it is 'port' by default.

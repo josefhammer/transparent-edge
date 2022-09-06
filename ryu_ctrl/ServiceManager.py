@@ -68,11 +68,8 @@ class ServiceManager:
 
     def loadServices(self, servicesGlob):
 
-        files = glob.glob(servicesGlob)
-
-        for filename in files:
-            service = Cluster.initService(filename=filename)
-            self._addService(service.toService(edgeIP=None, target=None), filename)
+        for filename in glob.glob(servicesGlob):
+            self._addService(filename)
 
     def initServices(self, edge: Edge):
         """
@@ -94,12 +91,19 @@ class ServiceManager:
                         svcInstance.deployment = deployments.get(svc.label, [Deployment()])[0]
                         self._addServiceInstance(svcInstance, edge)
 
-    def _addService(self, svc: Service, svcFilename: str = None):
+    def _addService(self, filename: str = None):
+
+        # get info from filename only (do not parse yaml for performance reasons - there might be millions)
+        #
+        svc = Service(
+            vAddr=None,
+            label=Service.labelFromServiceFilename(filename),
+            port=Service.portFromServiceFilename(filename))
 
         # Add service to global ServiceTrie
         #
         if not self._services.contains(svc.vAddr):
-            self._services.set(svc.vAddr, svcFilename)
+            self._services.set(svc.vAddr, filename)
             self.log.info("ServiceID " + str(svc))
 
     def _addServiceInstance(self, svcInstance, edge):
@@ -124,7 +128,8 @@ class ServiceManager:
 
     def deployService(self, edge: Edge, vAddr: SocketAddr):
 
-        service = Cluster.initService(label=self._services[vAddr].label, filename=self._services.serviceFilename(vAddr))
+        service = Cluster.initService(
+            label=self._services[vAddr].label, port=vAddr.port, filename=self._services.serviceFilename(vAddr))
         service.annotate(edge.schedulerName)
 
         perf = PerfCounter()
