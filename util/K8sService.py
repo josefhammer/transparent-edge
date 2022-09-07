@@ -45,22 +45,44 @@ class K8sService(object):
     def annotate(self, schedulerName: str = None):
 
         assert (self.yaml is not None)
+
+        if not self.containsService:
+            self.yaml.append({'apiVersion': 'v1', 'kind': 'Service'})
+
         for item in self.yaml:
-            #
-            # set unique label to be able to query both service and deployment
-            #
-            self._addLabel(item)
+            self._setName(item)
+            self._addLabel(item)  # set unique label
 
             if item.get("kind") == "Deployment":
-                self._addLabel(item["spec"]["template"])  # must be available
+                self._addLabel(item["spec"]["template"])  # spec.template must be available
+                self._setSelector(item, matchLabels=True)
 
                 # set schedulerName in case we want a local intra-cluster scheduler for this service
                 #
                 if schedulerName:
                     item["spec"]["template"]["spec"]["schedulerName"] = schedulerName
 
+            if item.get("kind") == 'Service':
+
+                self._setSelector(item)
+                item.setdefault('spec', {})['type'] = 'NodePort'  # or 'LoadBalancer'
+
+                # REVIEW Currently, we completely replace any existing port definitions.
+                #
+                item.setdefault('spec', {})['ports'] = [{'port': self.port, 'targetPort': self.port, 'protocol': 'TCP'}]
+
     def _addLabel(self, item):
         item.setdefault("metadata", {}).setdefault("labels", {})[K8sService.LABEL_NAME] = self.label
+
+    def _setName(self, item):
+        item.setdefault('metadata', {})['name'] = self.label.replace('.', '-')  # unique name necessary
+
+    def _setSelector(self, item, matchLabels=False):
+
+        sel = item.setdefault('spec', {}).setdefault('selector', {})
+        if matchLabels:
+            sel = sel.setdefault('matchLabels', {})
+        sel[K8sService.LABEL_NAME] = self.label
 
     def toService(self, edgeIP: IPAddr, target: str):  # -> returns Service or ServiceInstance
         #
