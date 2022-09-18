@@ -1,6 +1,6 @@
 #!/bin/bash
 
-alias miniedit='sudo ~/mininet/examples/miniedit.py'
+alias miniedit='sudo python2 ~/mininet/examples/miniedit.py'
 
 export RYU_EDGE="ryu-manager ./EdgeMainRyu.py --log-config-file=./config/ryu-log.cfg"
 export EDGE_SINGLE="EDGE_CONFIG='config/edge-single.json'"
