@@ -47,7 +47,7 @@ class TinyServiceTrie(object):
         """
         firstN, prefixes = self._trie.containsFirstNBits(ip.ip << 16)
 
-        return firstN + 1, [prefix - 16 for prefix in prefixes]  # +1: the next bit must match too
+        return firstN + 1, prefixes  # +1: the next bit must match too
 
     def serviceFilename(self, addr: SocketAddr):
 
