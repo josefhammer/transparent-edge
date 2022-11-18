@@ -28,6 +28,8 @@ class ServiceManager:
         self.loadClusters(clusterGlob)
         self.loadServices(servicesGlob)
 
+        log.info(f"NumServices={len(self._services)}")
+
     def isService(self, addr: SocketAddr):
         return self._services.contains(addr)
 
@@ -95,16 +97,19 @@ class ServiceManager:
 
         # get info from filename only (do not parse yaml for performance reasons - there might be millions)
         #
-        svc = Service(
-            vAddr=None,
-            label=Service.labelFromServiceFilename(filename),
-            port=Service.portFromServiceFilename(filename))
+        svc = Service(vAddr=None,
+                      label=Service.labelFromServiceFilename(filename),
+                      port=Service.portFromServiceFilename(filename))
 
         # Add service to global ServiceTrie
         #
         if not self._services.contains(svc.vAddr):
             self._services.set(svc.vAddr, filename)
-            self.log.info("ServiceID " + str(svc))
+            numServices = len(self._services)
+            if (numServices < 20):
+                self.log.info("ServiceID " + str(svc))
+            elif numServices == 20:
+                self.log.info("[... more ServiceIDs ...]")
 
     def _addServiceInstance(self, svcInstance, edge):
 
@@ -128,8 +133,9 @@ class ServiceManager:
 
     def deployService(self, edge: Edge, vAddr: SocketAddr):
 
-        service = Cluster.initService(
-            label=self._services[vAddr].label, port=vAddr.port, filename=self._services.serviceFilename(vAddr))
+        service = Cluster.initService(label=self._services[vAddr].label,
+                                      port=vAddr.port,
+                                      filename=self._services.serviceFilename(vAddr))
         service.annotate(edge.schedulerName)
 
         perf = PerfCounter()
