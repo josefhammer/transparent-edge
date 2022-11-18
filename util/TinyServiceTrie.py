@@ -8,9 +8,21 @@ import os
 
 
 class TinyServiceTrie(object):
+
     def __init__(self, servicesDir: str, numBits=48):
         self._trie = TinyTricia(numBits)
         self._servicesDir = servicesDir
+
+        if not os.path.exists(servicesDir):
+            os.makedirs(servicesDir)
+        else:
+            # remove existing folder to get rid of previously created links
+            #
+            # remove files one by one instead of the entire folder (safer!)
+            #
+            for file in os.scandir(servicesDir):
+                if file.path.endswith(".yml"):
+                    os.remove(file)
 
     def set(self, addr: SocketAddr, svcFilename: str):
 
