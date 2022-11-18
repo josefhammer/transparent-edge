@@ -7,6 +7,7 @@ Classes regarding edge services.
 from util.IPAddr import IPAddr
 from util.SocketAddr import SocketAddr
 
+import re
 import os
 
 
@@ -14,6 +15,8 @@ class Service(object):
     """
     Contains the data about a virtual service.
     """
+
+    _ip_pattern = re.compile('\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}')
 
     def __init__(self, vAddr: SocketAddr, label, port: int = None):
 
@@ -26,7 +29,12 @@ class Service(object):
 
     @property
     def domain(self):
-        return '.'.join(reversed(self.label.split('.')[:-1]))  # remove last part (= name) and reverse the others
+        address = self.label.split('.')[:-1]  # remove last part (= name)
+
+        if self._ip_pattern.match('.'.join(address)) != None:  # is an IP address
+            return '.'.join(address)
+        else:  # is a domain name
+            return '.'.join(reversed(address))  # reverse the parts
 
     @property
     def name(self):
