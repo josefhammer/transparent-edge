@@ -45,6 +45,7 @@ class EdgeController:
         self._servicesGlob = "/var/emu/services/*.yml"  # default value
         self._servicesDir = "/var/emu/svcMngr/"  # default value
         self._switchConfig = None
+        self._useUniquePrefix = True
         self._useUniqueMask = True
         self._logPerformance = False
         self._scheduler = {
@@ -59,12 +60,11 @@ class EdgeController:
             self.log.setLevel(logLevel)
             self.log.warn("Loglevel set to " + logLevel)
 
-        self._serviceMngr = ServiceManager(
-            self.logger("ServiceMngr"),
-            self._switches,
-            clusterGlob=self._clusterGlob,
-            servicesGlob=self._servicesGlob,
-            servicesDir=self._servicesDir)
+        self._serviceMngr = ServiceManager(self.logger("ServiceMngr"),
+                                           self._switches,
+                                           clusterGlob=self._clusterGlob,
+                                           servicesGlob=self._servicesGlob,
+                                           servicesDir=self._servicesDir)
 
         # dynamically load scheduler
         #
@@ -72,9 +72,9 @@ class EdgeController:
         schedulerModule = __import__(moduleName, fromlist=[className])
         scheduler = getattr(schedulerModule, className)
 
-        self.dispatcher = Dispatcher(
-            self.logger("Dispatcher"), self._serviceMngr,
-            scheduler(self.logger(self._scheduler["logName"]), self._scheduler), self.flowIdleTimeout * 2)
+        self.dispatcher = Dispatcher(self.logger("Dispatcher"), self._serviceMngr,
+                                     scheduler(self.logger(self._scheduler["logName"]), self._scheduler),
+                                     self.flowIdleTimeout * 2)
 
         for dpid, sw in self._switches.items():
             for edge in sw.edges:
@@ -101,36 +101,34 @@ class EdgeController:
 
             fwds = switch.listeners
             fwds.append(
-                EdgeDetector(
-                    self.logger("Detect", dpid),
-                    self._serviceMngr,
-                    preSelectTableID=self.PRESELECT_TABLE,
-                    tableID=self.EDGE_DETECT_TABLE,
-                    userTableID=self.EDGE_REDIR_TABLE,
-                    defaultTableID=self.DEFAULT_TABLE,
-                    useUniqueMask=self._useUniqueMask,
-                    flowIdleTimeout=self.flowIdleTimeout))
+                EdgeDetector(self.logger("Detect", dpid),
+                             self._serviceMngr,
+                             preSelectTableID=self.PRESELECT_TABLE,
+                             tableID=self.EDGE_DETECT_TABLE,
+                             userTableID=self.EDGE_REDIR_TABLE,
+                             defaultTableID=self.DEFAULT_TABLE,
+                             useUniquePrefix=self._useUniquePrefix,
+                             useUniqueMask=self._useUniqueMask,
+                             flowIdleTimeout=self.flowIdleTimeout))
             fwds.append(
-                EdgeRedirector(
-                    self.logger("Redir", dpid),
-                    self._serviceMngr,
-                    self.dispatcher,
-                    tableID=self.EDGE_REDIR_TABLE,
-                    defaultTableID=self.DEFAULT_TABLE,
-                    flowIdleTimeout=self.flowIdleTimeout))
+                EdgeRedirector(self.logger("Redir", dpid),
+                               self._serviceMngr,
+                               self.dispatcher,
+                               tableID=self.EDGE_REDIR_TABLE,
+                               defaultTableID=self.DEFAULT_TABLE,
+                               flowIdleTimeout=self.flowIdleTimeout))
             fwds.append(
-                L2TableForwarder(
-                    self.logger("L2Fwd", dpid),
-                    table1ID=self.DEFAULT_TABLE,
-                    table2ID=self.DEFAULT_TABLE + 1,
-                    flowIdleTimeout=self.flowIdleTimeout * 4))  # few + stable rules: use a longer timeout here
+                L2TableForwarder(self.logger("L2Fwd", dpid),
+                                 table1ID=self.DEFAULT_TABLE,
+                                 table2ID=self.DEFAULT_TABLE + 1,
+                                 flowIdleTimeout=self.flowIdleTimeout *
+                                 4))  # few + stable rules: use a longer timeout here
             fwds.append(
-                ArpTracker(
-                    self.logger("ArpTracker", dpid),
-                    self.PRESELECT_TABLE,
-                    srcMac=self.arpSrcMac,
-                    installFlow=True,
-                    fwdTable=self.DEFAULT_TABLE))
+                ArpTracker(self.logger("ArpTracker", dpid),
+                           self.PRESELECT_TABLE,
+                           srcMac=self.arpSrcMac,
+                           installFlow=True,
+                           fwdTable=self.DEFAULT_TABLE))
             fwds.append(PortTracker(self.logger("PortTracker", dpid)))
 
             # forward call to all forwarders
@@ -243,6 +241,7 @@ class EdgeController:
             self._clusterGlob = cfg.get('clusterGlob', self._clusterGlob)
             self._servicesGlob = cfg.get('servicesGlob', self._servicesGlob)
             self._servicesDir = cfg.get('servicesDir', self._servicesDir)
+            self._useUniquePrefix = cfg.get('useUniquePrefix', self._useUniquePrefix)
             self._useUniqueMask = cfg.get('useUniqueMask', self._useUniqueMask)
             self._logPerformance = cfg.get('logPerformance', self._logPerformance)
             self._scheduler = cfg.get('scheduler', self._scheduler)

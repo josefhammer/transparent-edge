@@ -5,6 +5,8 @@ from util.RyuOpenFlow import OpenFlow
 from util.Stats import Stats
 from logging import DEBUG, INFO
 
+import sys
+
 
 class EdgeDetector:
     """
@@ -18,6 +20,7 @@ class EdgeDetector:
                  tableID,
                  userTableID,
                  defaultTableID,
+                 useUniquePrefix,
                  useUniqueMask,
                  flowIdleTimeout=10):
 
@@ -27,11 +30,14 @@ class EdgeDetector:
         self.table = tableID
         self.userTable = userTableID
         self.defaultTable = defaultTableID
+        self.useUniquePrefix = useUniquePrefix
         self.useUniqueMask = useUniqueMask
         self.idleTimeout = flowIdleTimeout
 
         self.isDebugLogLevel = log.isEnabledFor(DEBUG)
         self.isInfoLogLevel = log.isEnabledFor(INFO)
+
+        log.info(f"UniquePrefix={useUniquePrefix}, UniqueMask={useUniqueMask}")
 
     def connect(self, of: OpenFlow):
 
@@ -174,21 +180,30 @@ class EdgeDetector:
             match.dstPort(dst.port)
 
         uniquePrefix = min(32, uniquePrefix)
+        prefixes.append(uniquePrefix)
 
-        if not self.useUniqueMask:  # use uniquePrefix only: all bits up to (incl.) uniquePrefix are set
+        if self.useUniqueMask:  # set the mask to the prefix bits
+            mask = 0
+            for prefix in prefixes:
+                mask += 1 << (32 - prefix)  # add bit at position(prefix)
+
+        elif self.useUniquePrefix:  # use uniquePrefix only: all bits up to (incl.) uniquePrefix are set
             mask = (1 << uniquePrefix) - 1  # set num(uniquePrefix) bits to 1
             mask <<= (32 - uniquePrefix)  # and move them to the far left
 
-        else:  # set the mask to the prefix bits only
-
-            prefixes.append(uniquePrefix)
-            for prefix in prefixes:
-                mask = 1 << (32 - prefix)  # add bit at position(prefix)
+        else:  # neither UniquePrefix nor UniqueMask
+            mask = (1 << 32) - 1  # all bits set
 
         ipMask = str(IPAddr(mask))
         match.dstIP(dst.ip, ipMask)
 
-        if self.isDebugLogLevel and (uniquePrefix < 32 or self.useUniqueMask):
+        # print mask info on stderr for data taking
+        #
+        # print('{' + f'"dstIP":"{dst.ip}","useMask":{1 if self.useUniqueMask else 0},' +
+        #       f'"mask":{mask},"prefix":{uniquePrefix}' + '},',
+        #       file=sys.stderr)
+
+        if self.isDebugLogLevel and ((self.useUniquePrefix and uniquePrefix < 32) or self.useUniqueMask):
             self.log.debug("Extended match for {}/{} (mask={}, prefixes={})".format(
                 dst.ip, ipMask if self.useUniqueMask else uniquePrefix, mask, prefixes))
         return match
@@ -209,5 +224,4 @@ class EdgeDetector:
         #
         actions = of.Action().gotoTable(self.defaultTable)
         of.FlowMod().table(self.table).cookie(Stats.DETECT_DEFAULT).idleTimeout(
-            self.idleTimeout * 4).match(match).actions(
-                actions, packetOut=outport).send()
+            self.idleTimeout * 4).match(match).actions(actions, packetOut=outport).send()
