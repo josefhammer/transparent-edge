@@ -91,7 +91,8 @@ class ServiceManager:
                     if svc.vAddr and self._services.contains(svc.vAddr):
 
                         svcInstance.deployment = deployments.get(svc.label, [Deployment()])[0]
-                        self._addServiceInstance(svcInstance, edge)
+                        if (svcInstance.deployment.available_replicas):
+                            self._addServiceInstance(svcInstance, edge)
 
     def _addService(self, filename: str = None):
 
@@ -120,8 +121,8 @@ class ServiceManager:
             # REVIEW Inefficient to ask twice or for every pod
             #
             pods = edge.cluster.pods(svcInstance.service.label)
-            assert (len(pods))
-
+            if not len(pods):
+                return
             svcInstance.eAddr.ip = IPAddr(pods[0].ip)
 
         # Add ServiceInstance to edge
