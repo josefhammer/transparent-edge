@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from util.MemoryEntry import MemoryEntry, Memory
+from util.FlowMemory import FlowMemoryEntry, FlowMemory
 from util.SocketAddr import SocketAddr
 from util.EdgeTools import Switch
 from util.RyuDPID import DPID
@@ -24,7 +24,7 @@ class Dispatcher:
         self.locations = {}
 
         # We remember where we directed flows so that if they start up again, we can send them to the same server.
-        self.memory = Memory(memIdleTimeout)  # (srcip,dstip,srcport,dstport) -> MemoryEntry
+        self.memory = FlowMemory(memIdleTimeout)  # (srcip,dstip,srcport,dstport) -> MemoryEntry
 
     def dispatch(self, switch: Switch, src: SocketAddr, dst: SocketAddr):
         """
@@ -69,7 +69,7 @@ class Dispatcher:
 
             edge = SocketAddr(svc.eAddr.ip, svc.eAddr.port, edge.switch.hosts[svc.edgeIP].mac)
 
-            entry = MemoryEntry(src, dst, edge)
+            entry = FlowMemoryEntry(src, dst, edge)
             self.memory.add(entry)
             log.debug("Memorized: {}".format(entry))
 

@@ -1,8 +1,7 @@
-from collections import UserDict
 import time
 
 
-class MemoryEntry(object):
+class FlowMemoryEntry(object):
     """
     Memorize our flows so we can use short timeouts on the switches.
 
@@ -19,7 +18,7 @@ class MemoryEntry(object):
         # we do not call refresh() here for performance reasons
 
     def refresh(self):
-        self.timeout = time.time() + MemoryEntry.idleTimeout
+        self.timeout = time.time() + FlowMemoryEntry.idleTimeout
         return self
 
     @property
@@ -38,29 +37,29 @@ class MemoryEntry(object):
         return "s={},d={},e={}".format(self.src.ip, self.dst, self.edge)
 
 
-class Memory(object):
+class FlowMemory(object):
     """ 
-    Manages MemoryEntries. Client port is _not_ used for search, only the IP.
+    Manages FlowMemoryEntries. Client port is _not_ used for search, only the IP.
     """
 
     def __init__(self, idleTimeout=60):  # seconds
 
         self._fwd = {}
         self._ret = {}
-        MemoryEntry.idleTimeout = idleTimeout
+        FlowMemoryEntry.idleTimeout = idleTimeout
 
     def getFwd(self, src, dst):  # client to serviceID
 
         self._expireOldFlows()  # expire on fwd event only
-        entry = self._fwd.get(MemoryEntry(src, dst, None).fwdkey)
+        entry = self._fwd.get(FlowMemoryEntry(src, dst, None).fwdkey)
         return entry if entry is None else entry.refresh()
 
     def getRet(self, edge, src):  # edge to client
 
-        entry = self._ret.get(MemoryEntry(src, None, edge).retkey)
+        entry = self._ret.get(FlowMemoryEntry(src, None, edge).retkey)
         return entry if entry is None else entry.refresh()
 
-    def add(self, entry: MemoryEntry):
+    def add(self, entry: FlowMemoryEntry):
 
         entry.refresh()
         self._fwd[entry.fwdkey] = entry  # does not use client port
