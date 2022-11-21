@@ -185,7 +185,8 @@ class EdgeDetector:
         if self.useUniqueMask:  # set the mask to the prefix bits
             mask = 0
             for prefix in prefixes:
-                mask += 1 << (32 - prefix)  # add bit at position(prefix)
+                if prefix <= 32:  # may contain values up to the original uniquePrefix (before min() call)
+                    mask |= 1 << (32 - prefix)  # add bit at position(prefix)
 
         elif self.useUniquePrefix:  # use uniquePrefix only: all bits up to (incl.) uniquePrefix are set
             mask = (1 << uniquePrefix) - 1  # set num(uniquePrefix) bits to 1
