@@ -86,6 +86,13 @@ class K8sCluster:
             dpm = self._toDeployment(evObj)
             self._log.debug(f"Deployment: event={event['type']} {dpm}")
 
+            # It does not matter which of the two values (`updated` or `ready`) we choose: Both approaches work for the
+            # user. While the waiting time here is significantly shorter with `updated_replicaes`, the total time for
+            # the user stays the same.
+            #
+            # However, if we use Pod routing, then we need to wait for the Pod anyway to get the IP address!
+            #
+            # if dpm.updated_replicas or dpm.ready_replicas:
             if dpm.ready_replicas:
                 svcInst.deployment = dpm
                 w.stop()
@@ -250,7 +257,8 @@ class K8sCluster:
         return Deployment(replicas=response.spec.replicas or 0,
                           available_replicas=response.status.available_replicas or 0,
                           ready_replicas=response.status.ready_replicas or 0,
-                          unavailable_replicas=response.status.unavailable_replicas or 0)
+                          unavailable_replicas=response.status.unavailable_replicas or 0,
+                          updated_replicas=response.status.updated_replicas or 0)
 
     def _getService(self, label: str):
 
