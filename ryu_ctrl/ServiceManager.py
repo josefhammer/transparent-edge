@@ -121,7 +121,7 @@ class ServiceManager:
             # If we route directly to the pod, we need to get the PodIP
             #
             pods = edge.cluster.pods(svcInstance.service.label)
-            if len(pods):
+            if len(pods) and pods[0].ip:
                 svcInstance.podAddr.ip = IPAddr(pods[0].ip)
                 svcInstance.eAddr = svcInstance.podAddr
 
