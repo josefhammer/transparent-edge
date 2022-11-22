@@ -21,6 +21,8 @@ class IPAddr(object):
             ip = int(IPv4Address(ip))
         elif isinstance(ip, IPAddr):
             ip = ip.ip
+        elif ip is None:
+            ip = 0
         self.ip = ip
         """ IPv4 address as int (most significant octet first). """
 
