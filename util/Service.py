@@ -41,6 +41,10 @@ class Service(object):
         return self.label.rsplit('.', 1)[1]
 
     @staticmethod
+    def uniqueName(label: str):  # REVIEW Move/refactor/...?
+        return label.replace('.', '-')
+
+    @staticmethod
     def labelFromServiceFilename(filename) -> str:
         return os.path.basename(filename).rsplit('.', 2)[0]  # [label, port, extension]
 

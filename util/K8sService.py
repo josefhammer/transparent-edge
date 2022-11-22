@@ -75,7 +75,7 @@ class K8sService(object):
         item.setdefault("metadata", {}).setdefault("labels", {})[K8sService.LABEL_NAME] = self.label
 
     def _setName(self, item):
-        item.setdefault('metadata', {})['name'] = self.label.replace('.', '-')  # unique name necessary
+        item.setdefault('metadata', {})['name'] = Service.uniqueName(self.label)
 
     def _setSelector(self, item, matchLabels=False):
 
