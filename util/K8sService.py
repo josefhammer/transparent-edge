@@ -42,7 +42,7 @@ class K8sService(object):
             self.yaml = yml
         self._parseYaml(self.yaml)
 
-    def annotate(self, schedulerName: str = None):
+    def annotate(self, schedulerName: str = None, replicas: int = 0):
 
         assert (self.yaml is not None)
 
@@ -56,6 +56,10 @@ class K8sService(object):
             if item.get("kind") == "Deployment":
                 self._addLabel(item["spec"]["template"])  # spec.template must be available
                 self._setSelector(item, matchLabels=True)
+
+                # set (initial) number of replicas
+                #
+                item["spec"]["replicas"] = replicas
 
                 # set schedulerName in case we want a local intra-cluster scheduler for this service
                 #
