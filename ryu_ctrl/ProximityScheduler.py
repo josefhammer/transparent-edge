@@ -18,14 +18,19 @@ class ProximityScheduler:
         self.log = log
         self.cfg = cfg
 
-    def schedule(self, dpid: DPID, service: Service, edges: list[Edge, int]) -> tuple[Edge, int]:
-        # input: list of [edge -> numRunningInstancesInEdge]
+    def schedule(self, dpid: DPID, service: Service, edges: list[Edge, int, int]) -> tuple[Edge, int, int]:
+        # input: list of [edge, numDeployedInstancesInEdge, numRunningInstancesInEdge]
 
-        choices = [(edge, avail) for (edge, avail) in edges if avail]  # preference for running instance first
+        choices = [(edge, dep, avail) for (edge, dep, avail) in edges if avail]  # preference for running instance first
+
+        if not len(choices):  # no instance running yet? -> choose from deployed
+            choices = [(edge, dep, avail) for (edge, dep, avail) in edges
+                       if dep]  # preference for deployed instance second
 
         if not len(choices):  # no instance running yet? -> choose from all
             choices = edges
 
-        closest = [(edge, avail) for (edge, avail) in choices if edge.dpid == dpid]  # preference for closest second
+        closest = [(edge, dep, avail) for (edge, dep, avail) in choices
+                   if edge.dpid == dpid]  # preference for closest third
 
-        return edges[0] if len(closest) else (None, None)  # return the first one
+        return closest[0] if len(closest) else (None, None, None)  # return the first one

@@ -3,7 +3,7 @@ from __future__ import annotations
 from util.Cluster import Cluster
 from util.EdgeTools import Edge, Switches
 from util.SocketAddr import SocketAddr
-from util.Service import Deployment, ServiceInstance, Service
+from util.Service import ServiceInstance, Service
 from util.IPAddr import IPAddr
 from util.TinyServiceTrie import TinyServiceTrie
 from util.Performance import PerfCounter
@@ -77,12 +77,12 @@ class ServiceManager:
         """
         Will be called after the switch connected. Before that, we may not be able to connect to the cluster.
         """
-        svcInstances = edge.cluster.services(None, edge.target)
+        svcInstances = edge.cluster.services(None)
         deployments = edge.cluster.deployments()
 
         for svcList in svcInstances.values():
             for svcInstance in svcList:
-                if isinstance(svcInstance, ServiceInstance):
+                if svcInstance:
                     assert svcInstance.service.label
 
                     # we only care about running instances of services we know about
@@ -90,8 +90,8 @@ class ServiceManager:
                     svc = svcInstance.service
                     if svc.vAddr and self._services.contains(svc.vAddr):
 
-                        svcInstance.deployment = deployments.get(svc.label, [Deployment()])[0]
-                        if (svcInstance.deployment.available_replicas):
+                        svcInstance.deployment = next(iter(deployments.get(svc.label)), None)
+                        if svcInstance.deployment:
                             self._addServiceInstance(svcInstance, edge)
 
     def _addService(self, filename: str = None):
@@ -112,46 +112,60 @@ class ServiceManager:
             elif numServices == 20:
                 self.log.info("[... more ServiceIDs ...]")
 
-    def _addServiceInstance(self, svcInstance, edge):
+    def _addServiceInstance(self, svcInstance: ServiceInstance, edge):
 
-        # If we route directly to the pod, we need to replace ClusterIP with PodIP
+        # Set correct eAddr for service instance: Exposed / Cluster / Pod
         #
         if edge.target == "pod":
             #
-            # REVIEW Inefficient to ask twice or for every pod
+            # If we route directly to the pod, we need to get the PodIP
             #
             pods = edge.cluster.pods(svcInstance.service.label)
-            if not len(pods):
-                return
-            svcInstance.eAddr.ip = IPAddr(pods[0].ip)
+            if len(pods):
+                svcInstance.podAddr.ip = IPAddr(pods[0].ip)
+                svcInstance.eAddr = svcInstance.podAddr
+
+        elif edge.target == "cluster":
+            svcInstance.eAddr = svcInstance.clusterAddr
+
+        elif edge.target == "exposed":
+            svcInstance.eAddr = svcInstance.publicAddr
+
+        else:
+            assert (False, "Invalid target: Must be pod|cluster|exposed.")
 
         # Add ServiceInstance to edge
         #
         edge.vServices[svcInstance.service.vAddr] = svcInstance  # REVIEW Requires to have a single instance only
-        edge.eServices[svcInstance.eAddr] = svcInstance
+        if svcInstance.eAddr:
+            edge.eServices[svcInstance.eAddr] = svcInstance
 
         self.log.info("ServiceInstance @ {}: {}".format(edge.dpid, svcInstance))
 
-    def deployService(self, edge: Edge, vAddr: SocketAddr):
-
-        service = Cluster.initService(label=self._services[vAddr].label,
-                                      port=vAddr.port,
-                                      filename=self._services.serviceFilename(vAddr))
-        service.annotate(edge.schedulerName)
+    def deployService(self, edge: Edge, vAddr: SocketAddr, svc: ServiceInstance = None):
 
         perf = PerfCounter()
-        svcInstance = edge.cluster.deployService(service, edge.target)
+        if not svc:
+            service = Cluster.initService(label=self._services[vAddr].label,
+                                          port=vAddr.port,
+                                          filename=self._services.serviceFilename(vAddr))
+            service.annotate(edge.schedulerName, replicas=0)
 
-        if svcInstance is not None:
+            svc = edge.cluster.deployService(service)
+        else:
+            edge.cluster.scaleDeployment(svc)
+
+        svcInstance = edge.cluster.watchDeployment(svc)
+
+        if svcInstance:
             self._addServiceInstance(svcInstance, edge)
             self.log.info("Service {} ready after {} ms.".format(str(svcInstance), perf.ms()))
-            return svcInstance
 
-        return None
+        return svcInstance
 
-    def availServers(self, addr: SocketAddr) -> tuple[Service, list[Edge, int]]:
+    def availServers(self, addr: SocketAddr) -> tuple[Service, list[Edge, int, int]]:
         """
-        :returns: A list of edges with the number of running instances in it.
+        :returns: A list of edges with the number of deployed + running instances in it.
         """
         log = self.log
         result = []
@@ -163,18 +177,18 @@ class ServiceManager:
                 # find a server that hosts (or may host) the required service
                 #
                 svc = edge.vServices.get(addr)
-                if svc is not None:  # we found a running instance
+                if svc is not None:  # we found a deployed instance
 
                     service = svc.service  # if we found an instance -> return it (performance)
 
                     if svc.edgeIP in switch.hosts:
-                        result.append((edge, 1))
+                        result.append((edge, 1, 1 if (svc.deployment and svc.deployment.ready_replicas) else 0))
                     else:
                         log.warn("Server {} not available at switch {}".format(svc.edgeIP, switch.dpid))
                         log.debug(switch.hosts)
                 else:
                     if edge.cluster and edge.cluster._ip and edge.cluster._ip in switch.hosts:
-                        result.append((edge, 0))
+                        result.append((edge, 0, 0))
 
                     elif edge.cluster and edge.cluster._ip:
                         log.warn("Cluster {} not available at switch {}".format(edge.cluster._ip, switch.dpid))

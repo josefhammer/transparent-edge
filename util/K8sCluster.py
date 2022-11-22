@@ -3,6 +3,7 @@ from __future__ import annotations
 # Disable the warnings triggered by verify_ssl=False
 #
 import urllib3
+
 urllib3.disable_warnings()  # https://urllib3.readthedocs.io/en/1.26.x/advanced-usage.html#ssl-warnings
 
 from kubernetes import client, config, utils, watch
@@ -12,7 +13,6 @@ from collections import defaultdict
 
 from util.IPAddr import IPAddr
 from util.Service import Deployment, Pod, ServiceInstance, Service
-from util.SocketAddr import SocketAddr
 from util.K8sService import K8sService
 
 from logging import WARNING, getLogger
@@ -41,59 +41,75 @@ class K8sCluster:
         self._k8s = client.CoreV1Api(self._apiClient)
         self._k8sApps = client.AppsV1Api(self._apiClient)
 
-    def deployService(self, service: K8sService, target: str):  # REVIEW Remove target param?
+    def deployService(self, service: K8sService):
 
         assert (service and service.yaml)
-        self.applyYaml(yml=service.yaml)
-        self._log.info("Service " + str(service) + " deployed.")
 
-        svcInsts = self.services(service.label, target)
+        # Check first whether it exists already
+        #
+        svcInst = self._getService(service.label)
 
-        if svcInsts:
-            svcInst = svcInsts[0]
-            if not svcInst:
-                return None
-
-            # Unfortunately, filtering pods by label is not perfectly reliable. Should use pod-template-hash instead:
-            # (https://stackoverflow.com/questions/52957227/kubectl-command-to-list-pods-of-a-deployment-in-kubernetes)
-            #
-            # NOTE: Actually, the info from the link above did not solve my issue. The 'pod-template-hash' was the same
-            # for all pods. In the end, the solution was to filter out pods with metadata.deletion_timestamp != None.
-            #
-            # While the 'pod-template-hash' shows a connection to a specific deployment, if the same deployment is
-            # deleted and created again immediately, the only solution is to filter by deletion_timestamp.
-            #
-            w = watch.Watch()
-            events = partial(w.stream, self._k8sApps.list_namespaced_deployment, self._namespace)
-
-            # REVIEW We might have to do an initial query first in case the deployment is really fast
-            #
-            for event in events(label_selector=self._labelSelector(service.label), _request_timeout=60):
-                d = event['object']
-                depl = Deployment(d.status.available_replicas or 0, d.status.ready_replicas or 0)
-
-                self._log.debug(f"Deployment: event={event['type']} ready={depl.ready_replicas}")
-
-                if depl.ready_replicas:
-                    svcInst.deployment = depl
-                    w.stop()
-
+        if svcInst and svcInst.deployment and svcInst.deployment.ready_replicas:
+            # REVIEW Service definition might have changed, though
+            self._log.info(f"Service <{svcInst}> already up and running.")  # nothing to do here
             return svcInst
-        return None
 
-    def services(self, label: str, target: str):
+        if not svcInst or not svcInst.deployment:  # not available yet -> deploy
+            self.applyYaml(yml=service.yaml)
+            self._log.info("Service <" + str(service) + "> deployed.")
+            svcInst = next(iter(self.services(service.label)), None)
 
-        return self._toMap(label, self.rawServices, lambda i: self._apiResponseToService(i, target))
+        assert (svcInst)
+        self.scaleDeployment(svcInst)
+        return svcInst
 
-    def _apiResponseToService(self, i, target):
+    def scaleDeployment(self, svc: ServiceInstance):
+
+        assert (svc)
+
+        if not svc.deployment or not svc.deployment.replicas:  # we need to scale up
+            self._scaleDeployment(svc.service.label, 1)
+            self._log.info("Scaling up from zero: " + str(svc))
+
+    def watchDeployment(self, svcInst: ServiceInstance):
+
+        assert (svcInst)
+
+        # REVIEW Monitoring should/could be done in a separate thread
+        #
+        w = watch.Watch()
+        events = partial(w.stream, self._k8sApps.list_namespaced_deployment, self._namespace)
+
+        for event in events(label_selector=self._labelSelector(svcInst.service.label), _request_timeout=60):
+            evObj = event['object']
+
+            dpm = self._toDeployment(evObj)
+            self._log.debug(f"Deployment: event={event['type']} {dpm}")
+
+            if dpm.ready_replicas:
+                svcInst.deployment = dpm
+                w.stop()
+
+        return svcInst
+
+    def _scaleDeployment(self, label: str, replicas: int):
+        api_response = self._k8sApps.patch_namespaced_deployment_scale(Service.uniqueName(label), self._namespace,
+                                                                       {'spec': {
+                                                                           'replicas': replicas
+                                                                       }})
+
+    def services(self, label: str):
+
+        return self._toMap(label, self.rawServices, lambda i: self._apiResponseToService(i))
+
+    def _apiResponseToService(self, i):
 
         i.kind = "Service"  # unfortunately, it's returned as None
-        return K8sService(label=None, yml=[i.to_dict()]).toService(self._ip, target)
+        return K8sService(label=None, yml=[i.to_dict()]).toService(self._ip)
 
     def deployments(self, label=None):
 
-        return self._toMap(label, self.rawDeployments,
-                           lambda i: Deployment(i.status.available_replicas or 0, i.status.ready_replicas or 0))
+        return self._toMap(label, self.rawDeployments, lambda i: self._toDeployment(i))
 
     def pods(self, label=None):
 
@@ -109,8 +125,18 @@ class K8sCluster:
                               self._k8sApps.list_deployment_for_all_namespaces)
 
     def rawPods(self, label=None):
-
-        # filter out all pods marked for deletion
+        #
+        # Filter out all pods marked for deletion.
+        #
+        # Unfortunately, filtering pods by label is not perfectly reliable. Should use pod-template-hash instead:
+        # (https://stackoverflow.com/questions/52957227/kubectl-command-to-list-pods-of-a-deployment-in-kubernetes)
+        #
+        # NOTE: Actually, the info from the link above did not solve my issue. The 'pod-template-hash' was the same
+        # for all pods. In the end, the solution was to filter out pods with metadata.deletion_timestamp != None.
+        #
+        # While the 'pod-template-hash' shows a connection to a specific deployment, if the same deployment is
+        # deleted and created again immediately, the only solution is to filter by deletion_timestamp.
+        #
         return filter(lambda p: p.metadata.deletion_timestamp is None,
                       self._getItems(label, self._k8s.list_namespaced_pod, self._k8s.list_pod_for_all_namespaces))
 
@@ -218,3 +244,18 @@ class K8sCluster:
             return partial(funcAll, label_selector=self._labelSelector(label))
         else:
             return partial(funcNs, self._namespace, label_selector=self._labelSelector(label))
+
+    def _toDeployment(self, response):
+
+        return Deployment(replicas=response.spec.replicas or 0,
+                          available_replicas=response.status.available_replicas or 0,
+                          ready_replicas=response.status.ready_replicas or 0,
+                          unavailable_replicas=response.status.unavailable_replicas or 0)
+
+    def _getService(self, label: str):
+
+        svcInst = next(iter(self.services(label)), None)  # [0] or None
+
+        if svcInst:
+            svcInst.deployment = next(iter(self.deployments(label)), None)
+        return svcInst

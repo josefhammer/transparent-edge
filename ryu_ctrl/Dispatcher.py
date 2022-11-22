@@ -52,10 +52,14 @@ class Dispatcher:
             service, edges = self._serviceMngr.availServers(dst)  # running instances available?
             if not service:
                 service = self._serviceMngr.service(dst)
-            edge, numRunningInstances = self._scheduler.schedule(dpid, service, edges)
+            edge, numDeployed, numRunningInstances = self._scheduler.schedule(dpid, service, edges)
 
             if numRunningInstances:
                 svc = edge.vServices.get(dst)
+            elif numDeployed:
+                svc = edge.vServices.get(dst)
+                svc = self._serviceMngr.deployService(edge, dst, svc)  # scale up instance
+                assert (svc)
             else:
                 if edge is None:
                     log.warn("No server found for service {} at switch {}.".format(dst, dpid))

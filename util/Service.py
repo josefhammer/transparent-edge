@@ -72,12 +72,17 @@ class ServiceInstance(object):
     Contains all the data for a single edge service instance.
     """
 
-    def __init__(self, service: Service, edgeIP: IPAddr, eAddr: SocketAddr):
+    def __init__(self, service: Service, edgeIP: IPAddr):
 
         self.service = service
         self.edgeIP = edgeIP
-        self.eAddr = eAddr  # edge service address (depends on config flags)
-        self.deployment = Deployment()
+        self.eAddr = None  # edge service address (depends on config flags)
+
+        self.publicAddr = None
+        self.clusterAddr = None
+        self.podAddr = None
+
+        self.deployment = None
 
     def __eq__(self, other):
         if (isinstance(other, ServiceInstance)):
@@ -88,8 +93,7 @@ class ServiceInstance(object):
         return not self == other
 
     def __repr__(self):
-        return "{} @ {} ({}) [{}/{} ready]".format(self.service, self.edgeIP, self.eAddr,
-                                                   self.deployment.ready_replicas, self.deployment.available_replicas)
+        return "{} @ {} ({}) [{}]".format(self.service, self.edgeIP, self.eAddr or '-', self.deployment)
 
 
 class Deployment(object):
@@ -97,10 +101,16 @@ class Deployment(object):
     Contains all the data about a single edge service deployment.
     """
 
-    def __init__(self, available_replicas=0, ready_replicas=0):
+    def __init__(self, replicas=0, available_replicas=0, ready_replicas=0, unavailable_replicas=0):
 
+        self.replicas = replicas  # configured replicas (not the actual ones)
         self.available_replicas = available_replicas
         self.ready_replicas = ready_replicas
+        self.unavailable_replicas = unavailable_replicas
+
+    def __repr__(self):
+        return "replicas={}, av={}|{}, ready={}".format(self.replicas, self.ready_replicas, self.unavailable_replicas,
+                                                        self.available_replicas)
 
 
 class Pod(object):

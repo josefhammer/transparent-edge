@@ -88,7 +88,7 @@ class K8sService(object):
             sel = sel.setdefault('matchLabels', {})
         sel[K8sService.LABEL_NAME] = self.label
 
-    def toService(self, edgeIP: IPAddr, target: str):  # -> returns Service or ServiceInstance
+    def toService(self, edgeIP: IPAddr) -> ServiceInstance:
         #
         # REVIEW Move somewhere else? Refactor?
         #
@@ -96,33 +96,23 @@ class K8sService(object):
             print("missing label")
             return None
 
-        service = Service(vAddr=None, label=self.label, port=self.port)
-
-        # Return only service if no instance is known/available
-        #
         if edgeIP is None or self.clusterIP is None:
-            return service
+            return None
 
-        # Exposed / Cluster / Pod
+        service = ServiceInstance(Service(vAddr=None, label=self.label, port=self.port), edgeIP)
+        service.clusterAddr = SocketAddr(self.clusterIP, self.port)
+
+        if self.podPort:
+            service.podAddr = SocketAddr(0, self.podPort)  # REVIEW Needs to be replaced by real Pod IP later
+
+        # public address: use LoadBalancer if avail, otherwise NodePort routing
         #
-        if target == "pod":
-            eAddr = SocketAddr(self.clusterIP, self.podPort)  # FIXME/REVIEW Needs to be replaced by real IP later
-
-        elif target == "cluster":
-            eAddr = SocketAddr(self.clusterIP, self.port)
-
-        elif target == "exposed":
-            #
-            # use LoadBalancer if avail, otherwise NodePort routing
-            #
-            ePort = self.port if self.type == "LoadBalancer" else self.nodePort
-            assert (ePort != None)
-            eAddr = SocketAddr(edgeIP, ePort)
-
-        else:
-            assert (False, "Invalid target: Must be pod|cluster|exposed.")
-
-        return ServiceInstance(service, edgeIP, eAddr)
+        if self.type == "LoadBalancer":
+            service.publicAddr = SocketAddr(edgeIP, self.port)
+        elif self.nodePort:
+            service.publicAddr = SocketAddr(edgeIP, self.nodePort)
+        # else publicAddr==None
+        return service
 
     def _parseYaml(self, yml):
         """
