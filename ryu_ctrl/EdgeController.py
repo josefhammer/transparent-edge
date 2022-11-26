@@ -41,7 +41,7 @@ class EdgeController:
 
         # Load configuration
         #
-        self._clusterGlob = "/var/emu/*-k8s.json"  # default value
+        self._clusterGlob = "/var/emu/clusters/*-*.json"  # default value
         self._servicesGlob = "/var/emu/services/*.yml"  # default value
         self._servicesDir = "/var/emu/svcMngr/"  # default value
         self._switchConfig = None
