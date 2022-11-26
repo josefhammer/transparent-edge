@@ -24,8 +24,8 @@ class K8sService(object):
         self.type = None
         self.yaml = []
 
-        self.containsService = False
-        self.containsDeployment = False
+        self._serviceDef = None  # pointer to the yaml item (if avail)
+        self._deploymentDef = None  # pointer to the yaml item (if avail)
 
         # NOTE: info from filename has precedence over yaml
         #
@@ -46,7 +46,7 @@ class K8sService(object):
 
         assert (self.yaml is not None)
 
-        if not self.containsService:
+        if not self._serviceDef:
             self.yaml.append({'apiVersion': 'v1', 'kind': 'Service'})
 
         for item in self.yaml:
@@ -122,16 +122,50 @@ class K8sService(object):
             kind = item.get("kind")
 
             if "Deployment" == kind:
-                self.containsDeployment = True
+                self._parseDeployDef(item)
 
             if "Service" == kind:
                 self._parseServiceDef(item)
+
+    def _parseDeployDef(self, yml: dict):
+        """
+        Extracts the necessary information from a K8s Service definition.
+        """
+        self._deploymentDef = yml  # parse on demand only
+
+    def containers(self) -> map[str, tuple[str, int]]:
+
+        assert (self._deploymentDef)
+        result = {}
+
+        # read template (if available)
+        #
+        template = self._get(self._deploymentDef, "spec", 'template')
+        containers = self._get(template, "spec", 'containers')
+
+        # Example: [{'name': 'web-tiny-asm', 'image': 'josefhammer/web-tiny-asm:amd64',
+        #            'ports': [{'containerPort': 8080}]}]
+        #
+        for container in containers:
+            name = container.get('name')
+            image = container.get('image')
+            containerPort = 0
+
+            for port in container.get('ports', []):
+                containerPort = port.get("containerPort", 0)
+
+                if containerPort:
+                    break  # REVIEW currently, first containerPort only
+
+            result[name] = (image, containerPort)  # port==0 if nothing to expose
+
+        return result
 
     def _parseServiceDef(self, yml: dict):
         """
         Extracts the necessary information from a K8s Service definition.
         """
-        self.containsService = True
+        self._serviceDef = yml
 
         # read label (if available)
         #
