@@ -9,17 +9,16 @@ urllib3.disable_warnings()  # https://urllib3.readthedocs.io/en/1.26.x/advanced-
 from kubernetes import client, config, utils, watch
 from kubernetes.client.rest import ApiException
 
-from collections import defaultdict
-
 from util.IPAddr import IPAddr
 from util.Service import Deployment, Pod, ServiceInstance, Service
 from util.K8sService import K8sService
+from cluster.Cluster import Cluster
 
 from logging import WARNING, getLogger
 from functools import partial
 
 
-class K8sCluster:
+class K8sCluster(Cluster):
     """
     Interface to a single Kubernetes cluster.
     """
@@ -45,19 +44,9 @@ class K8sCluster:
 
         assert (service and service.yaml)
 
-        # Check first whether it exists already
-        #
-        svcInst = self._getService(service.label)
-
-        if svcInst and svcInst.deployment and svcInst.deployment.ready_replicas:
-            # REVIEW Service definition might have changed, though
-            self._log.info(f"Service <{svcInst}> already up and running.")  # nothing to do here
-            return svcInst
-
-        if not svcInst or not svcInst.deployment:  # not available yet -> deploy
-            self.applyYaml(yml=service.yaml)
-            self._log.info("Service <" + str(service) + "> deployed.")
-            svcInst = next(iter(self.services(service.label)), None)
+        self.applyYaml(yml=service.yaml)
+        self._log.info("Service <" + str(service) + "> deployed.")
+        svcInst = next(iter(self.services(service.label)), None)
 
         assert (svcInst)
         self.scaleDeployment(svcInst)
@@ -151,21 +140,9 @@ class K8sCluster:
 
         return self._getItems(label, self._k8s.list_namespaced_endpoints, self._k8s.list_endpoints_for_all_namespaces)
 
-    def _toMap(self, label, rawFunc, func):
+    def _label(self, item):
 
-        items = rawFunc(label)
-
-        # single label requested -> return array
-        #
-        if label:
-            return [func(i) for i in items]
-
-        # otherwise -> return dict[label]
-        #
-        result = defaultdict(list)
-        for i in items:
-            result[None if not i.metadata.labels else i.metadata.labels.get(self._labelName)].append(func(i))
-        return result
+        return None if not item.metadata.labels else item.metadata.labels.get(self._labelName)
 
     def applyYaml(self, filename=None, yml=None):
         """
@@ -259,11 +236,3 @@ class K8sCluster:
                           ready_replicas=response.status.ready_replicas or 0,
                           unavailable_replicas=response.status.unavailable_replicas or 0,
                           updated_replicas=response.status.updated_replicas or 0)
-
-    def _getService(self, label: str):
-
-        svcInst = next(iter(self.services(label)), None)  # [0] or None
-
-        if svcInst:
-            svcInst.deployment = next(iter(self.deployments(label)), None)
-        return svcInst

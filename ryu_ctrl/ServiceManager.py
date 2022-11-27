@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from util.Cluster import Cluster
+from cluster import initCluster
+from cluster.Cluster import Cluster
 from util.EdgeTools import Edge, Switches
 from util.SocketAddr import SocketAddr
 from util.Service import ServiceInstance, Service
@@ -57,6 +58,8 @@ class ServiceManager:
 
         for filename in files:
 
+            # e.g.: 10.0.3.100:6443-k8s.json
+            #
             clusterName = os.path.splitext(os.path.basename(filename))[0]
             apiServer, clusterType = clusterName.split("-")  # clusterType after '-'
             edgeIP = apiServer.split(":")[0]
@@ -65,7 +68,7 @@ class ServiceManager:
                 for edge in sw.edges:
                     if edge.ip == IPAddr(edgeIP):
 
-                        edge.cluster = Cluster.init(clusterType, apiServer, filename)
+                        edge.cluster = initCluster(clusterType, apiServer, filename)
                         break
 
     def loadServices(self, servicesGlob):
@@ -78,7 +81,6 @@ class ServiceManager:
         Will be called after the switch connected. Before that, we may not be able to connect to the cluster.
         """
         svcInstances = edge.cluster.services(None)
-        deployments = edge.cluster.deployments()
 
         for svcList in svcInstances.values():
             for svcInstance in svcList:
@@ -90,7 +92,11 @@ class ServiceManager:
                     svc = svcInstance.service
                     if svc.vAddr and self._services.contains(svc.vAddr):
 
-                        svcInstance.deployment = next(iter(deployments.get(svc.label)), None)
+                        # if no deployment info yet -> query explicitly
+                        #
+                        if not svcInstance.deployment:
+                            svcInstance.deployment = next(iter(edge.cluster.deployments(svc.label)), None)
+
                         if svcInstance.deployment:
                             self._addServiceInstance(svcInstance, edge)
 
@@ -151,7 +157,16 @@ class ServiceManager:
                                           filename=self._services.serviceFilename(vAddr))
             service.annotate(edge.schedulerName, replicas=0)
 
-            svc = edge.cluster.deployService(service)
+            # Check first whether it exists already
+            #
+            svcInst = edge.cluster.getService(service.label)
+
+            if svcInst and svcInst.deployment and svcInst.deployment.ready_replicas:
+                # REVIEW Service definition might have changed, though
+                self.log.info(f"Service <{svcInst}> already up and running.")  # nothing to do here
+                svc = svcInst
+            else:
+                svc = edge.cluster.deployService(service)
         else:
             edge.cluster.scaleDeployment(svc)
 
