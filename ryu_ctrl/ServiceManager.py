@@ -92,7 +92,7 @@ class ServiceManager:
                     svc = svcInstance.service
                     if svc.vAddr and self._services.contains(svc.vAddr):
 
-                        # if no deployment info yet -> query explicitly
+                        # if no deployment info yet -> query explicitly (only for K8s)
                         #
                         if not svcInstance.deployment:
                             svcInstance.deployment = next(iter(edge.cluster.deployments(svc.label)), None)

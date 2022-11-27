@@ -98,7 +98,7 @@ class DockerCluster(Cluster):
                 cont.reload()
                 if cont.ports:  # REVIEW Duplicate from _apiResonseToService()
                     svc.clusterAddr = SocketAddr(self._ip, self._getLocalPort(cont))  # REVIEW For K8s in K8sService
-                    svc.deployment = self._toDeployment(None)
+                    svc.deployment = Deployment(1, 1)
             else:
                 cont.stop()
 
@@ -118,25 +118,9 @@ class DockerCluster(Cluster):
             svc.deployment = Deployment()  # deployed, but no instance running
         return svc
 
-    def deployments(self, label=None):
-
-        #FIXME
-        if label:
-            return {label: self._toDeployment(None)}
-
-        return self._toMap(label, self.rawDeployments, lambda i: self._toDeployment(i))
-
     def rawServices(self, label=None):
 
         return self._getItems(label, self._client.containers.list)
-
-    def rawDeployments(self, label=None):
-
-        #FIXME
-        return self._getItems(label, self._emptyList)
-
-    def _emptyList(self, filters=None):
-        return [None]
 
     def _label(self, item):
 
@@ -161,11 +145,6 @@ class DockerCluster(Cluster):
         except Exception as e:
             self._log.warn(e)
             return []
-
-    def _toDeployment(self, response):
-
-        # FIXME
-        return Deployment(replicas=1, ready_replicas=1)
 
     def _getLocalPort(self, container):
 
