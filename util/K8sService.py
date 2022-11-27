@@ -3,7 +3,7 @@
 from __future__ import annotations
 import yaml
 
-from util.Service import Service, ServiceInstance
+from util.Service import Service, ServiceInstance, Container
 from util.IPAddr import IPAddr
 from util.SocketAddr import SocketAddr
 
@@ -133,10 +133,10 @@ class K8sService(object):
         """
         self._deploymentDef = yml  # parse on demand only
 
-    def containers(self) -> map[str, tuple[str, int]]:
+    def containers(self) -> list[Container]:
 
         assert (self._deploymentDef)
-        result = {}
+        result = []
 
         # read template (if available)
         #
@@ -147,17 +147,15 @@ class K8sService(object):
         #            'ports': [{'containerPort': 8080}]}]
         #
         for container in containers:
-            name = container.get('name')
-            image = container.get('image')
-            containerPort = 0
+
+            cont = Container(container.get('name'), container.get('image'))
+            result.append(cont)
 
             for port in container.get('ports', []):
-                containerPort = port.get("containerPort", 0)
+                containerPort = port.get("containerPort")
 
                 if containerPort:
-                    break  # REVIEW currently, first containerPort only
-
-            result[name] = (image, containerPort)  # port==0 if nothing to expose
+                    cont.ports.append(containerPort)
 
         return result
 

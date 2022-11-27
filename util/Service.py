@@ -83,6 +83,7 @@ class ServiceInstance(object):
         self.podAddr = None
 
         self.deployment = None
+        self.containers = []  # REVIEW
 
     def __eq__(self, other):
         if (isinstance(other, ServiceInstance)):
@@ -119,3 +120,30 @@ class Pod(object):
 
         self.ip = ip
         self.status = status
+
+
+class Container(object):
+    """ 
+    Contains all data about a container.
+    ---
+    imagePullPolicy: https://kubernetes.io/docs/concepts/containers/images/
+    
+    IfNotPresent: the image is pulled only if it is not already present locally.
+    
+    Always: every time the kubelet launches a container, the kubelet queries the container image registry to resolve
+    the name to an image digest. If the kubelet has a container image with that exact digest cached locally, the
+    kubelet uses its cached image; otherwise, the kubelet pulls the image with the resolved digest, and uses that
+    image to launch the container.
+
+    Docker: --pull [default: missing]: Pull image before creating ("always"|"missing"|"never").
+    """
+
+    def __init__(self, name: str, image: str):
+
+        self.name = name
+        self.image = image
+        self.ports = []
+        self.imagePullPolicy = "IfNotPresent"  # IfNotPresent | Always | Never
+
+    def __repr__(self):
+        return f"{self.name}: {self.image} {self.ports}"

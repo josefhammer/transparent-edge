@@ -16,6 +16,8 @@ from cluster.Cluster import Cluster
 
 from logging import WARNING, getLogger
 
+from util.Performance import PerfCounter
+
 
 class DockerCluster(Cluster):
     """
@@ -49,54 +51,70 @@ class DockerCluster(Cluster):
         #
         # client = docker.DockerClient(base_url='tcp://127.0.0.1:1234')
 
-    def deployService(self, service: K8sService):
+    def deployService(self, service: K8sService, run: bool = False):
 
         assert (service and service.yaml)
 
-        exposedContainer = None
+        containers = []
+        func = self._client.containers.run if run else self._client.containers.create
 
-        for name, (image, port) in service.containers().items():
-            container = self._client.containers.run(
-                image,
-                auto_remove=True,
-                detach=True,
-                environment=None,  # dict or list
-                labels={
-                    self._labelName: service.label,
-                    self._labelPort: str(service.port),
-                },
-                ports={} if not port else {str(port) + '/tcp': None},  # None -> random host port
-                publish_all_ports=False)
+        perf = PerfCounter()
+        for cont in service.containers():
+            containers.append(
+                func(
+                    cont.image,
+                    auto_remove=True,
+                    detach=True,
+                    environment=None,  # dict or list
+                    labels={
+                        self._labelName: service.label,
+                        self._labelPort: str(service.port),
+                    },
+                    ports={
+                        port: None  # if specific IP only: (self._ip, None)
+                        for port in cont.ports
+                    },  # None -> random host port; TCP by default
+                    publish_all_ports=False))
 
-            if port:
-                assert (not exposedContainer)  # REVIEW: only one port mapping supported
-                exposedContainer = container
+        print(perf.ms(), "ms")
+
+        # update attrs to get the new auto-assigned ports
+        # ports are assigned only on run, not on create!
+        for cont in containers:
+            cont.reload()
 
         self._log.info("Service <" + str(service) + "> deployed.")
 
-        assert (exposedContainer)
-        exposedContainer.reload()  # update attrs to get the new auto-assigned ports
-        svcInst = self._apiResponseToService(exposedContainer)
-        assert (svcInst)
+        svcInst = self._apiResponseToService(containers[0])  # REVIEW port from first container only
+        svcInst.containers = containers
 
-        # REVIEW self.scaleDeployment(svcInst)
+        if run:
+            svcInst.deployment = self._toDeployment(None)
+        else:
+            self.scaleDeployment(svcInst)
         return svcInst
 
     def scaleDeployment(self, svc: ServiceInstance):
 
         assert (svc)
-
         if not svc.deployment or not svc.deployment.replicas:  # we need to scale up
-            self._scaleDeployment(svc.service.label, 1)
+            self._scaleDeployment(svc, 1)
             self._log.info("Scaling up from zero: " + str(svc))
+
+        svc.deployment = self._toDeployment(None)
 
     def watchDeployment(self, svcInst: ServiceInstance):
 
         assert (svcInst)
         return self.getService(svcInst.service.label)
 
-    def _scaleDeployment(self, label: str, replicas: int):
-        pass
+    def _scaleDeployment(self, svc: ServiceInstance, replicas: int):
+
+        for cont in svc.containers:
+            if replicas:
+                cont.start()
+            else:
+                cont.stop()
 
     def services(self, label: str):
 
@@ -176,4 +194,4 @@ class DockerCluster(Cluster):
         # container.ports:
         # {'8080/tcp': [{'HostIp': '0.0.0.0', 'HostPort': '49153'}, {'HostIp': '::', 'HostPort': '49153'}]}
         #
-        return int(container.ports[next(iter(container.ports))][0]['HostPort'])  # first port in first mapping
+        return int(container.ports[next(iter(container.ports))][0]['HostPort'])  # only first port in first mapping
