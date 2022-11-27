@@ -63,7 +63,7 @@ class DockerCluster(Cluster):
             containers.append(
                 func(
                     cont.image,
-                    auto_remove=True,
+                    # auto_remove=True,  # we want to keep them after scaling down to zero
                     detach=True,
                     environment=None,  # dict or list
                     labels={
@@ -110,9 +110,12 @@ class DockerCluster(Cluster):
 
         service = Service(None, label=i.labels.get(self._labelName), port=int(i.labels.get(self._labelPort)))
         svc = ServiceInstance(service, self._ip)
+        svc.containers.append(i)  # REVIEW Works only if service consists of a single container
         if i.ports:
             svc.clusterAddr = SocketAddr(self._ip, self._getLocalPort(i))  # REVIEW For K8s in K8sService
-            svc.deployment = self._toDeployment(None)
+            svc.deployment = Deployment(replicas=1, ready_replicas=1)
+        else:
+            svc.deployment = Deployment()  # deployed, but no instance running
         return svc
 
     def deployments(self, label=None):
@@ -122,10 +125,6 @@ class DockerCluster(Cluster):
             return {label: self._toDeployment(None)}
 
         return self._toMap(label, self.rawDeployments, lambda i: self._toDeployment(i))
-
-    def pods(self, label=None):
-
-        return self._toMap(label, self.rawPods, lambda i: Pod(i.status.pod_ip, i.status.phase))
 
     def rawServices(self, label=None):
 
@@ -138,13 +137,6 @@ class DockerCluster(Cluster):
 
     def _emptyList(self, filters=None):
         return [None]
-
-    def rawPods(self, label=None):
-
-        # FIXME
-        return [None]
-        return filter(lambda p: p.metadata.deletion_timestamp is None,
-                      self._getItems(label, self._k8s.list_namespaced_pod, self._k8s.list_pod_for_all_namespaces))
 
     def _label(self, item):
 
@@ -163,7 +155,7 @@ class DockerCluster(Cluster):
     def _getItems(self, label, func):
 
         try:
-            ret = func(filters=self._labelSelector(label))
+            ret = func(filters=self._labelSelector(label), all=True)  # all: include stopped containers
             return self._filterLabelAvailable(ret)
 
         except Exception as e:
