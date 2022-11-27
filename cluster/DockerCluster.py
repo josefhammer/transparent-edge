@@ -169,11 +169,7 @@ class DockerCluster(Cluster):
     def _toDeployment(self, response):
 
         # FIXME
-        return Deployment(replicas=1,
-                          available_replicas=1,
-                          ready_replicas=1,
-                          unavailable_replicas=0,
-                          updated_replicas=1)
+        return Deployment(replicas=1, ready_replicas=1)
 
     def _getLocalPort(self, container):
 

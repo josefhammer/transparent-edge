@@ -231,8 +231,4 @@ class K8sCluster(Cluster):
 
     def _toDeployment(self, response):
 
-        return Deployment(replicas=response.spec.replicas or 0,
-                          available_replicas=response.status.available_replicas or 0,
-                          ready_replicas=response.status.ready_replicas or 0,
-                          unavailable_replicas=response.status.unavailable_replicas or 0,
-                          updated_replicas=response.status.updated_replicas or 0)
+        return Deployment(replicas=response.spec.replicas or 0, ready_replicas=response.status.ready_replicas or 0)

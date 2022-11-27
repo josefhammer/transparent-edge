@@ -101,17 +101,13 @@ class Deployment(object):
     Contains all the data about a single edge service deployment.
     """
 
-    def __init__(self, replicas=0, available_replicas=0, ready_replicas=0, unavailable_replicas=0, updated_replicas=0):
+    def __init__(self, replicas=0, ready_replicas=0):
 
         self.replicas = replicas  # configured replicas (not the actual ones)
-        self.available_replicas = available_replicas
         self.ready_replicas = ready_replicas
-        self.unavailable_replicas = unavailable_replicas
-        self.updated_replicas = updated_replicas
 
     def __repr__(self):
-        return "replicas={}, av={}|{}, ready={}".format(self.replicas, self.ready_replicas, self.unavailable_replicas,
-                                                        self.available_replicas)
+        return "replicas={}/{}".format(self.ready_replicas, self.replicas)
 
 
 class Pod(object):
