@@ -82,7 +82,7 @@ class ServiceInstance(object):
         self.clusterAddr = None
         self.podAddr = None
 
-        self.deployment = None
+        self.deployment: Deployment = None
         self.containers = []  # REVIEW
 
     def __eq__(self, other):

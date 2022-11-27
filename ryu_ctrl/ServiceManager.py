@@ -159,24 +159,22 @@ class ServiceManager:
 
             # Check first whether it exists already
             #
-            svcInst = edge.cluster.getService(service.label)
+            svcInst = edge.cluster.getService(service.label)  # REVIEW initService really necessary here?
 
             if svcInst and svcInst.deployment and svcInst.deployment.ready_replicas:
                 # REVIEW Service definition might have changed, though
                 self.log.info(f"Service <{svcInst}> already up and running.")  # nothing to do here
                 svc = svcInst
             else:
-                svc = edge.cluster.deployService(service)
-        else:
-            edge.cluster.scaleDeployment(svc)
+                svc = edge.cluster.deploy(service)
 
-        svcInstance = edge.cluster.watchDeployment(svc)
+        edge.cluster.scale(svc, replicas=1)
 
-        if svcInstance:
-            self._addServiceInstance(svcInstance, edge)
-            self.log.info("Service {} ready after {} ms.".format(str(svcInstance), perf.ms()))
+        if svc and svc.deployment and svc.deployment.ready_replicas:
+            self._addServiceInstance(svc, edge)
+            self.log.info("Service {} ready after {} ms.".format(str(svc), perf.ms()))
 
-        return svcInstance
+        return svc
 
     def availServers(self, addr: SocketAddr) -> tuple[Service, list[Edge, int, int]]:
         """

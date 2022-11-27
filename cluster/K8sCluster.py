@@ -40,25 +40,13 @@ class K8sCluster(Cluster):
         self._k8s = client.CoreV1Api(self._apiClient)
         self._k8sApps = client.AppsV1Api(self._apiClient)
 
-    def deployService(self, service: K8sService):
+    def deploy(self, service: K8sService) -> ServiceInstance:
 
         assert (service and service.yaml)
 
         self.applyYaml(yml=service.yaml)
         self._log.info("Service <" + str(service) + "> deployed.")
-        svcInst = next(iter(self.services(service.label)), None)
-
-        assert (svcInst)
-        self.scaleDeployment(svcInst)
-        return svcInst
-
-    def scaleDeployment(self, svc: ServiceInstance):
-
-        assert (svc)
-
-        if not svc.deployment or not svc.deployment.replicas:  # we need to scale up
-            self._scaleDeployment(svc.service.label, 1)
-            self._log.info("Scaling up from zero: " + str(svc))
+        return next(iter(self.services(service.label)), None)
 
     def watchDeployment(self, svcInst: ServiceInstance):
 
@@ -76,7 +64,7 @@ class K8sCluster(Cluster):
             self._log.debug(f"Deployment: event={event['type']} {dpm}")
 
             # It does not matter which of the two values (`updated` or `ready`) we choose: Both approaches work for the
-            # user. While the waiting time here is significantly shorter with `updated_replicaes`, the total time for
+            # user. While the waiting time here is significantly shorter with `updated_replicas`, the total time for
             # the user stays the same.
             #
             # However, if we use Pod routing, then we need to wait for the Pod anyway to get the IP address!
@@ -86,13 +74,13 @@ class K8sCluster(Cluster):
                 svcInst.deployment = dpm
                 w.stop()
 
-        return svcInst
-
-    def _scaleDeployment(self, label: str, replicas: int):
-        api_response = self._k8sApps.patch_namespaced_deployment_scale(Service.uniqueName(label), self._namespace,
+    def _scale(self, svc: ServiceInstance, replicas: int):
+        api_response = self._k8sApps.patch_namespaced_deployment_scale(Service.uniqueName(svc.service.label),
+                                                                       self._namespace,
                                                                        {'spec': {
                                                                            'replicas': replicas
                                                                        }})
+        self.watchDeployment(svc)
 
     def services(self, label: str):
 

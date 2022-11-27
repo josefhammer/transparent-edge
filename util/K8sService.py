@@ -22,6 +22,7 @@ class K8sService(object):
         self.podPort = None
         self.clusterIP = None
         self.type = None
+        self.replicas = 0
         self.yaml = []
 
         self._serviceDef = None  # pointer to the yaml item (if avail)
@@ -45,6 +46,7 @@ class K8sService(object):
     def annotate(self, schedulerName: str = None, replicas: int = 0):
 
         assert (self.yaml is not None)
+        self.replicas = replicas
 
         if not self._serviceDef:
             self.yaml.append({'apiVersion': 'v1', 'kind': 'Service'})
@@ -132,6 +134,7 @@ class K8sService(object):
         Extracts the necessary information from a K8s Service definition.
         """
         self._deploymentDef = yml  # parse on demand only
+        self.replicas = self._get(yml, "spec", "replicas", 0)
 
     def containers(self) -> list[Container]:
 

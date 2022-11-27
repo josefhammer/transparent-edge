@@ -29,6 +29,26 @@ class Cluster(ABC):
             svcInst.deployment = next(iter(self.deployments(label)), None)
         return svcInst
 
+    @abstractmethod
+    def deploy(self, service: K8sService) -> ServiceInstance:
+        pass
+
+    def scale(self, svc: ServiceInstance, replicas: int = 1):
+
+        assert (svc)
+        if replicas:
+            if not svc.deployment or not svc.deployment.replicas:  # we need to scale up
+                self._scale(svc, replicas)
+                self._log.info("Scaling up from zero: " + str(svc))
+        else:
+            if svc.deployment and svc.deployment.replicas:  # we need to scale down
+                self._scale(svc, replicas)
+                self._log.info("Scaling down to zero: " + str(svc))
+
+    @abstractmethod
+    def _scale(self, svc: ServiceInstance, replicas: int = 1):
+        pass
+
     def _toMap(self, label, rawFunc, func):
 
         items = rawFunc(label)

@@ -51,12 +51,12 @@ class DockerCluster(Cluster):
         #
         # client = docker.DockerClient(base_url='tcp://127.0.0.1:1234')
 
-    def deployService(self, service: K8sService, run: bool = False):
+    def deploy(self, service: K8sService):
 
         assert (service and service.yaml)
 
         containers = []
-        func = self._client.containers.run if run else self._client.containers.create
+        func = self._client.containers.run if service.replicas else self._client.containers.create
 
         perf = PerfCounter()
         for cont in service.containers():
@@ -76,43 +76,29 @@ class DockerCluster(Cluster):
                     },  # None -> random host port; TCP by default
                     publish_all_ports=False))
 
-        print(perf.ms(), "ms")
+        if service.replicas:
+            # update attrs to get the new auto-assigned ports
+            # ports are assigned only on run, not on create!
+            for cont in containers:
+                cont.reload()
 
-        # update attrs to get the new auto-assigned ports
-        # ports are assigned only on run, not on create!
-        for cont in containers:
-            cont.reload()
-
-        self._log.info("Service <" + str(service) + "> deployed.")
+        self._log.info(f"Service <{ str(service) }> deployed ({ perf.ms() } ms).")
 
         svcInst = self._apiResponseToService(containers[0])  # REVIEW port from first container only
         svcInst.containers = containers
-
-        if run:
-            svcInst.deployment = self._toDeployment(None)
-        else:
-            self.scaleDeployment(svcInst)
         return svcInst
 
-    def scaleDeployment(self, svc: ServiceInstance):
-
-        assert (svc)
-        if not svc.deployment or not svc.deployment.replicas:  # we need to scale up
-            self._scaleDeployment(svc, 1)
-            self._log.info("Scaling up from zero: " + str(svc))
-
-        svc.deployment = self._toDeployment(None)
-
-    def watchDeployment(self, svcInst: ServiceInstance):
-
-        assert (svcInst)
-        return self.getService(svcInst.service.label)
-
-    def _scaleDeployment(self, svc: ServiceInstance, replicas: int):
+    def _scale(self, svc: ServiceInstance, replicas: int):
 
         for cont in svc.containers:
             if replicas:
                 cont.start()
+                # update attrs to get the new auto-assigned ports
+                # ports are assigned only on run, not on create!
+                cont.reload()
+                if cont.ports:  # REVIEW Duplicate from _apiResonseToService()
+                    svc.clusterAddr = SocketAddr(self._ip, self._getLocalPort(cont))  # REVIEW For K8s in K8sService
+                    svc.deployment = self._toDeployment(None)
             else:
                 cont.stop()
 
