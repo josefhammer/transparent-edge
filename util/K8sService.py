@@ -14,10 +14,15 @@ class K8sService(object):
     """
     LABEL_NAME = "edge.service"
 
-    def __init__(self, label=None, port=None, filename=None, yml: dict = None):
+    def __init__(self, service=None, label=None, port=None, filename=None, yml: dict = None):
 
-        self.label = label
-        self.port = port
+        self.service = service
+        if service:
+            self.label = service.label
+            self.port = service.vAddr.port
+        else:
+            self.label = label
+            self.port = port
         self.nodePort = None
         self.podPort = None
         self.clusterIP = None
@@ -101,7 +106,8 @@ class K8sService(object):
         if edgeIP is None or self.clusterIP is None:
             return None
 
-        service = ServiceInstance(Service(vAddr=None, label=self.label, port=self.port), edgeIP)
+        service = ServiceInstance(
+            Service(vAddr=self.service.vAddr if self.service else None, label=self.label, port=self.port), edgeIP)
         service.clusterAddr = SocketAddr(self.clusterIP, self.port)
 
         if self.podPort:

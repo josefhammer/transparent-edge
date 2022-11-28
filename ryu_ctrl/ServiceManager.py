@@ -148,33 +148,29 @@ class ServiceManager:
 
         self.log.info("ServiceInstance @ {}: {}".format(edge.dpid, svcInstance))
 
-    def deployService(self, edge: Edge, vAddr: SocketAddr, svc: ServiceInstance = None):
+    def deployService(self, edge: Edge, service: Service):
+
+        assert service
+        perf = PerfCounter()
+
+        serviceDef = Cluster.initService(service=service, filename=self._services.serviceFilename(service.vAddr))
+
+        # REVIEW For a higher total speed, immediately scale to 1
+        serviceDef.annotate(edge.schedulerName, replicas=1)
+
+        svc = edge.cluster.deploy(serviceDef)
+
+        self.log.info("Service {} deployed after {} ms.".format(str(svc), perf.ms()))
+        return svc
+
+    def scaleService(self, edge: Edge, svc: ServiceInstance):
 
         perf = PerfCounter()
-        if not svc:
-            service = Cluster.initService(label=self._services[vAddr].label,
-                                          port=vAddr.port,
-                                          filename=self._services.serviceFilename(vAddr))
-            service.annotate(edge.schedulerName, replicas=0)
-
-            # Check first whether it exists already
-            #
-            svcInst = edge.cluster.getService(service.label)  # REVIEW initService really necessary here?
-
-            if svcInst and svcInst.deployment and svcInst.deployment.ready_replicas:
-                # REVIEW Service definition might have changed, though
-                self.log.info(f"Service <{svcInst}> already up and running.")  # nothing to do here
-                svc = svcInst
-            else:
-                svc = edge.cluster.deploy(service)
-
         edge.cluster.scale(svc, replicas=1)
 
         if svc and svc.deployment and svc.deployment.ready_replicas:
             self._addServiceInstance(svc, edge)
-            self.log.info("Service {} ready after {} ms.".format(str(svc), perf.ms()))
-
-        return svc
+            self.log.info("Service {} scaled up after {} ms.".format(str(svc), perf.ms()))
 
     def availServers(self, addr: SocketAddr) -> tuple[Service, list[Edge, int, int]]:
         """

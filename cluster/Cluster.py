@@ -13,13 +13,13 @@ class Cluster(ABC):
     """
 
     @staticmethod
-    def initService(label=None, port=None, filename=None, yml: dict = None):
+    def initService(service=None, label=None, port=None, filename=None, yml: dict = None):
         """
         Factory method to create a service from its definition (file or yaml).
         
         Currently, only K8s Yaml files are supported.
         """
-        return K8sService(label, port, filename, yml)
+        return K8sService(service, label, port, filename, yml)
 
     def getService(self, label: str) -> ServiceInstance:
 

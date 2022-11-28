@@ -58,14 +58,14 @@ class Dispatcher:
                 svc = edge.vServices.get(dst)
             elif numDeployed:
                 svc = edge.vServices.get(dst)
-                svc = self._serviceMngr.deployService(edge, dst, svc)  # scale up instance
-                assert (svc)
+                self._serviceMngr.scaleService(edge, svc)  # scale up instance
             else:
                 if edge is None:
                     log.warn("No server found for service {} at switch {}.".format(dst, dpid))
                     return None
 
-                svc = self._serviceMngr.deployService(edge, dst)  # try to deploy an instance
+                svc = self._serviceMngr.deployService(edge, service)  # try to deploy an instance
+                self._serviceMngr.scaleService(edge, svc)  # and wait for it to be scaled up
 
                 if not svc:
                     log.warn("Could not instantiate service {} at edge {}.".format(dst, edge.ip))
