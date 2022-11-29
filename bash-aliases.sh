@@ -2,10 +2,11 @@
 
 alias miniedit='sudo python2 ~/mininet/examples/miniedit.py'
 
-alias lsEdgeDocker='docker ps --filter label=edge.service -a'
-alias killEdgeDocker='docker kill $(docker ps --filter label=edge.service -q)'
-alias rmEdgeDocker='docker container rm $(lsEdgeDocker -q)'
+alias lsEdgeDocker='docker ps --filter label=edge.service --filter label=edge.port'
+alias lsallEdgeDocker='lsEdgeDocker -a'
 alias stopEdgeDocker='docker container stop $(lsEdgeDocker -q)'
+alias killEdgeDocker='docker kill $(lsEdgeDocker -q)'
+alias rmEdgeDocker='docker container rm $(lsEdgeDocker -a -q)'
 alias killEdgeK8s='kubectl -n edge delete svc,pod,deployment --all'
 
 export RYU_EDGE="ryu-manager ./EdgeMainRyu.py --log-config-file=./config/ryu-log.cfg"
