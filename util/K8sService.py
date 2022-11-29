@@ -32,6 +32,7 @@ class K8sService(object):
 
         self._serviceDef = None  # pointer to the yaml item (if avail)
         self._deploymentDef = None  # pointer to the yaml item (if avail)
+        self._containers = None
 
         # NOTE: info from filename has precedence over yaml
         #
@@ -78,9 +79,23 @@ class K8sService(object):
                 self._setSelector(item)
                 item.setdefault('spec', {})['type'] = 'NodePort'  # or 'LoadBalancer'
 
+                # if no targetPort is defined, we use the first containerPort  # REVIEW
+                #
+                if not self.podPort:
+                    for cont in self._containers:
+                        for port in cont.ports:
+                            self.podPort = port
+                            break
+                        if self.podPort:
+                            break
+
                 # REVIEW Currently, we completely replace any existing port definitions.
                 #
-                item.setdefault('spec', {})['ports'] = [{'port': self.port, 'targetPort': self.port, 'protocol': 'TCP'}]
+                item.setdefault('spec', {})['ports'] = [{
+                    'port': self.port,
+                    'targetPort': self.podPort or self.port,
+                    'protocol': 'TCP'
+                }]
 
     def _addLabel(self, item):
         item.setdefault("metadata", {}).setdefault("labels", {})[K8sService.LABEL_NAME] = self.label
@@ -139,10 +154,14 @@ class K8sService(object):
         """
         Extracts the necessary information from a K8s Service definition.
         """
-        self._deploymentDef = yml  # parse on demand only
+        self._deploymentDef = yml
+        self._containers = self.containers()
         self.replicas = self._get(yml, "spec", "replicas", 0)
 
     def containers(self) -> list[Container]:
+
+        if self._containers:
+            return self._containers
 
         assert (self._deploymentDef)
         result = []
@@ -200,7 +219,7 @@ class K8sService(object):
             # K8s: If targetPort is not defined, it is 'port' by default.
             # The key is called 'targetPort' in Yaml and 'target_port' in the API.
             #
-            self.podPort = port.get("targetPort", port.get('target_port', self.port))
+            self.podPort = port.get("targetPort", port.get('target_port', None))
 
             # REVIEW currently, we use only one port (could be more, though; in particular with node ports)
             break
