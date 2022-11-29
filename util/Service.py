@@ -2,6 +2,11 @@
 #
 """
 Classes regarding edge services.
+
+NOTE: The variable names usually used are:
+- service: Service
+- svc: ServiceInstance
+- serviceDef: K8sService
 """
 
 from util.IPAddr import IPAddr
