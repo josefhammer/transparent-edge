@@ -148,6 +148,7 @@ class Container(object):
         self.name = name
         self.image = image
         self.ports = []
+        self.volumes = {}  # name -> mountPath
         self.imagePullPolicy = "IfNotPresent"  # IfNotPresent | Always | Never
 
     def __repr__(self):

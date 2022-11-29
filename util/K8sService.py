@@ -170,6 +170,7 @@ class K8sService(object):
         #
         template = self._get(self._deploymentDef, "spec", 'template')
         containers = self._get(template, "spec", 'containers')
+        volumes = self._get(template, "spec", 'volumes')
 
         # Example: [{'name': 'web-tiny-asm', 'image': 'josefhammer/web-tiny-asm:amd64',
         #            'ports': [{'containerPort': 8080}]}]
@@ -184,6 +185,33 @@ class K8sService(object):
 
                 if containerPort:
                     cont.ports.append(containerPort)
+
+            for volume in container.get('volumeMounts', []):
+                path = volume.get('mountPath')
+                name = volume.get('name')
+                if path and name:
+                    cont.volumes[name] = path
+
+        return result
+
+    def volumes(self) -> dict[str]:  # name -> hostPath
+
+        assert (self._deploymentDef)
+        result = {}
+
+        # read template (if available)
+        #
+        template = self._get(self._deploymentDef, "spec", 'template')
+        volumes = self._get(template, "spec", 'volumes')
+
+        for volume in volumes:
+            name = volume.get('name')
+            if name:
+                path = volume.get('hostPath')
+                path = self._get(volume, 'hostPath', 'path', '')
+
+                if path:
+                    result[name] = path
 
         return result
 
