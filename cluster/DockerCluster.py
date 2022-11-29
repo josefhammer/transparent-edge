@@ -51,15 +51,21 @@ class DockerCluster(Cluster):
         #
         # client = docker.DockerClient(base_url='tcp://127.0.0.1:1234')
 
-    def deploy(self, service: K8sService):
+    def deploy(self, serviceDef: K8sService):
 
-        assert (service and service.yaml)
+        assert (serviceDef and serviceDef.yaml)
 
         containers = []
-        func = self._client.containers.run if service.replicas else self._client.containers.create
+        func = self._client.containers.run if serviceDef.replicas else self._client.containers.create
+        hostPaths = serviceDef.volumes()
 
         perf = PerfCounter()
-        for cont in service.containers():
+        for cont in serviceDef.containers():
+
+            # generate volume mounts list
+            #
+            volumes = [f'{hostPaths[name]}:{path}' for name, path in cont.volumes.items()]
+
             containers.append(
                 func(
                     cont.image,
@@ -67,26 +73,27 @@ class DockerCluster(Cluster):
                     detach=True,
                     environment=None,  # dict or list
                     labels={
-                        self._labelName: service.label,
-                        self._labelPort: str(service.port),
+                        self._labelName: serviceDef.label,
+                        self._labelPort: str(serviceDef.port),
                     },
                     ports={
                         port: None  # if specific IP only: (self._ip, None)
                         for port in cont.ports
                     },  # None -> random host port; TCP by default
+                    volumes=volumes,
                     publish_all_ports=False))
 
-        if service.replicas:
+        if serviceDef.replicas:
             # update attrs to get the new auto-assigned ports
             # ports are assigned only on run, not on create!
             for cont in containers:
                 cont.reload()
 
-        self._log.info(f"Service <{ str(service) }> deployed ({ perf.ms() } ms).")
+        self._log.info(f"Service <{ str(serviceDef) }> deployed ({ perf.ms() } ms).")
 
-        svcInst = self._apiResponseToService(containers[0])  # REVIEW port from first container only
-        svcInst.containers = containers
-        return svcInst
+        svc = self._apiResponseToService(containers[0])  # REVIEW port from first container only
+        svc.containers = containers
+        return svc
 
     def _scale(self, svc: ServiceInstance, replicas: int):
 
