@@ -111,12 +111,11 @@ class K8sCluster(Cluster):
 
     def rawServices(self, label=None):
 
-        return self._getItems(label, self._k8s.list_namespaced_service, self._k8s.list_service_for_all_namespaces)
+        return self._getItems(label, self._k8s.list_service_for_all_namespaces)
 
     def rawDeployments(self, label=None):
 
-        return self._getItems(label, self._k8sApps.list_namespaced_deployment,
-                              self._k8sApps.list_deployment_for_all_namespaces)
+        return self._getItems(label, self._k8sApps.list_deployment_for_all_namespaces)
 
     def rawPods(self, label=None):
         #
@@ -132,17 +131,16 @@ class K8sCluster(Cluster):
         # deleted and created again immediately, the only solution is to filter by deletion_timestamp.
         #
         return filter(lambda p: p.metadata.deletion_timestamp is None,
-                      self._getItems(label, self._k8s.list_namespaced_pod, self._k8s.list_pod_for_all_namespaces))
+                      self._getItems(label, self._k8s.list_pod_for_all_namespaces))
 
     def rawEndpoints(self, label=None):
 
-        return self._getItems(label, self._k8s.list_namespaced_endpoints, self._k8s.list_endpoints_for_all_namespaces)
+        return self._getItems(label, self._k8s.list_endpoints_for_all_namespaces)
 
     def rawNamespaces(self, name=None):
 
         return self._getItems(label=None,
-                              funcNs=None,
-                              funcAll=self._k8s.list_namespace,
+                              func=self._k8s.list_namespace,
                               filter=False,
                               fieldSelectors=self._fieldSelector({'metadata.name': name}))
 
@@ -213,7 +211,7 @@ class K8sCluster(Cluster):
                 result += field + "=" + value + ","
         return result[:-1]  # remove last ","
 
-    def _getItems(self, label, funcNs, funcAll, filter=True, fieldSelectors=""):
+    def _getItems(self, label, func, filter=True, fieldSelectors=""):
 
         labelSel = self._labelSelector(label)
 
@@ -231,7 +229,7 @@ class K8sCluster(Cluster):
                 labelSel = self._labelName
 
         try:
-            return self._getFunc(funcNs, funcAll)(label_selector=labelSel, field_selector=fieldSelectors).items
+            return func(label_selector=labelSel, field_selector=fieldSelectors).items
 
         except ApiException as e:
             self._log.warn(e)
@@ -244,13 +242,6 @@ class K8sCluster(Cluster):
         except ApiException as e:
             self._log.warn(e)
             return []
-
-    def _getFunc(self, funcNs, funcAll):
-
-        if self._namespace is None or funcNs is None:
-            return partial(funcAll)
-        else:
-            return partial(funcNs, self._namespace)
 
     def _toDeployment(self, response):
 
