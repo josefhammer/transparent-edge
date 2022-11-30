@@ -40,6 +40,12 @@ class K8sCluster(Cluster):
         self._k8s = client.CoreV1Api(self._apiClient)
         self._k8sApps = client.AppsV1Api(self._apiClient)
 
+        if not len(self.rawNamespaces(self._namespace)):
+            #
+            # namespace does not exist yet -> create it
+            #
+            self.createNamespace(self._namespace)
+
     def deploy(self, service: K8sService) -> ServiceInstance:
 
         assert (service and service.yaml)
@@ -99,6 +105,10 @@ class K8sCluster(Cluster):
 
         return self._toMap(label, self.rawPods, lambda i: Pod(i.status.pod_ip, i.status.phase))
 
+    def createNamespace(self, name):
+
+        return self._tryFunc(partial(self._k8s.create_namespace, client.V1Namespace(metadata=dict(name=name))))
+
     def rawServices(self, label=None):
 
         return self._getItems(label, self._k8s.list_namespaced_service, self._k8s.list_service_for_all_namespaces)
@@ -127,6 +137,14 @@ class K8sCluster(Cluster):
     def rawEndpoints(self, label=None):
 
         return self._getItems(label, self._k8s.list_namespaced_endpoints, self._k8s.list_endpoints_for_all_namespaces)
+
+    def rawNamespaces(self, name=None):
+
+        return self._getItems(label=None,
+                              funcNs=None,
+                              funcAll=self._k8s.list_namespace,
+                              filter=False,
+                              fieldSelectors=self._fieldSelector({'metadata.name': name}))
 
     def _label(self, item):
 
@@ -187,35 +205,52 @@ class K8sCluster(Cluster):
 
         return None if not label else self._labelName + "=" + label
 
-    def _filterLabelAvailable(self, items):
+    def _fieldSelector(self, fieldValues: dict) -> str:
 
-        if self._labelName is None:
-            return items
-        return filter(lambda i: i.metadata and i.metadata.labels and i.metadata.labels.get(self._labelName), items)
+        result = ""
+        for (field, value) in fieldValues.items():
+            if value is not None:
+                result += field + "=" + value + ","
+        return result[:-1]  # remove last ","
 
-    def _filterNamespace(self, items):
+    def _getItems(self, label, funcNs, funcAll, filter=True, fieldSelectors=""):
 
-        if self._namespace is None:
-            return items
-        return filter(lambda item: self._namespace == item.metadata.namespace, items)
+        labelSel = self._labelSelector(label)
 
-    def _getItems(self, label, funcNs, funcAll):
+        if filter:
+            # filter: our namespace only
+            #
+            if self._namespace:
+                if fieldSelectors:
+                    fieldSelectors += ","
+                fieldSelectors += self._fieldSelector({'metadata.namespace': self._namespace})
+
+            # filter: unless we filter for a specific label already: is the label available (independent of value)?
+            #
+            if not labelSel:
+                labelSel = self._labelName
 
         try:
-            ret = self._getFunc(label, funcNs, funcAll)()
-
-            return self._filterNamespace(self._filterLabelAvailable(ret.items))
+            return self._getFunc(funcNs, funcAll)(label_selector=labelSel, field_selector=fieldSelectors).items
 
         except ApiException as e:
             self._log.warn(e)
             return []
 
-    def _getFunc(self, label, funcNs, funcAll):
+    def _tryFunc(self, func):
 
-        if self._namespace is None:
-            return partial(funcAll, label_selector=self._labelSelector(label))
+        try:
+            return func()
+        except ApiException as e:
+            self._log.warn(e)
+            return []
+
+    def _getFunc(self, funcNs, funcAll):
+
+        if self._namespace is None or funcNs is None:
+            return partial(funcAll)
         else:
-            return partial(funcNs, self._namespace, label_selector=self._labelSelector(label))
+            return partial(funcNs, self._namespace)
 
     def _toDeployment(self, response):
 
