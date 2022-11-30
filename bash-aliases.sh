@@ -8,6 +8,7 @@ alias stopEdgeDocker='docker container stop $(lsEdgeDocker -q)'
 alias killEdgeDocker='docker kill $(lsEdgeDocker -q)'
 alias rmEdgeDocker='docker container rm $(lsEdgeDocker -a -q)'
 alias killEdgeK8s='kubectl -n edge delete svc,pod,deployment --all'
+alias stopEdgeK8s='kubectl -n edge scale --replicas=0 deployments -l edge.service'
 
 export RYU_EDGE="ryu-manager ./EdgeMainRyu.py --log-config-file=./config/ryu-log.cfg"
 export EDGE_SINGLE="EDGE_CONFIG='config/edge-single.json'"
