@@ -147,6 +147,8 @@ class Container(object):
 
         self.name = name
         self.image = image
+        self.command = None
+        self.args = None
         self.ports = []
         self.volumes = {}  # name -> mountPath
         self.imagePullPolicy = "IfNotPresent"  # IfNotPresent | Always | Never

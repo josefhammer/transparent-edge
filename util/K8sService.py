@@ -180,6 +180,9 @@ class K8sService(object):
             cont = Container(container.get('name'), container.get('image'))
             result.append(cont)
 
+            cont.command = container.get('command')
+            cont.args = container.get('args')
+
             for port in container.get('ports', []):
                 containerPort = port.get("containerPort")
 

@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-# Disable the warnings triggered by verify_ssl=False
-#
-import urllib3
-
-urllib3.disable_warnings()  # https://urllib3.readthedocs.io/en/1.26.x/advanced-usage.html#ssl-warnings
-
 import docker
 
 from util.IPAddr import IPAddr
-from util.Service import Deployment, Pod, ServiceInstance, Service
+from util.Service import Deployment, ServiceInstance, Service
 from util.K8sService import K8sService
 from util.SocketAddr import SocketAddr
 from cluster.Cluster import Cluster
@@ -66,9 +60,11 @@ class DockerCluster(Cluster):
             #
             volumes = [f'{hostPaths[name]}:{path}' for name, path in cont.volumes.items()]
 
+            # TODO If multiple containers: Launch them in parallel
             containers.append(
                 func(
                     cont.image,
+                    command=cont.command.extend(cont.args) if cont.command else None,
                     # auto_remove=True,  # we want to keep them after scaling down to zero
                     detach=True,
                     environment=None,  # dict or list
@@ -82,6 +78,10 @@ class DockerCluster(Cluster):
                     },  # None -> random host port; TCP by default
                     volumes=volumes,
                     publish_all_ports=False))
+
+            # NOTE: for debugging only
+            # for line in containers[-1].logs(stream=True): #, follow=False):
+            #     self._log.debug(line.strip())
 
         if serviceDef.replicas:
             # update attrs to get the new auto-assigned ports
