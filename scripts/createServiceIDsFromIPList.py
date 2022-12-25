@@ -3,6 +3,7 @@
 import shutil
 import os
 import sys
+import argparse
 
 
 def readIPs(filename):
@@ -17,22 +18,31 @@ def readIPs(filename):
 # MAIN
 #
 if __name__ == "__main__":
-    template = "/var/emu/services/at.aau.scalingtest.17.yml"
+    # template = "/var/emu/services/at.aau.scalingtest.17.yml"
+    template = "/var/emu/services/at.aau.helloworld-asm.8081.yml"
     baseFolder = "/var/emu/"
 
-    if len(sys.argv) < 2:
-        print("Call:" + sys.argv[0] + " ipFile", file=sys.stderr)
-        exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('ipFile', help='File containing the IP addresses')
+    parser.add_argument('--template', help='Template file for services to be generated')
+    parser.add_argument('--serviceName', help='Name of the service to be generated')
+    args = parser.parse_args()
 
-    ipFile = sys.argv[1]
+    ipFile = args.ipFile
+    template = args.template or template
+    svcName = args.serviceName or "scalingtest"
 
     ips = readIPs(ipFile)
-    setName = os.path.basename(ipFile).rsplit(".", 1)[0]
+    setName = os.path.basename(ipFile).rsplit(".", 1)[0]  # the name of the set of service IPs
     print("#IPs =", len(ips), "Set =", setName, file=sys.stderr)
 
     folder = os.path.join(baseFolder, setName)
 
     print(folder)
+
+    if not os.path.exists(baseFolder):
+        print("BaseFolder does not exist")
+        exit(1)
 
     # remove existing folder
     if os.path.exists(folder):
@@ -46,4 +56,11 @@ if __name__ == "__main__":
         # to broadcast a daily quote on request by a user. It was then formally codified both for prior purposes as
         # well as for testing and measurement purposes.
         #
-        os.symlink(template, os.path.join(folder, addr + ".scalingtest.17.yml"))  # port 17:
+        port = '17'  # default port: highly unlikely to collide with any IP/port combination
+
+        parts = addr.split(':')
+        if len(parts) > 1:
+            addr = parts[0]
+            port = parts[1]
+
+        os.symlink(template, os.path.join(folder, f"{addr}.{svcName}.{port}.yml"))
