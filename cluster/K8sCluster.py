@@ -40,6 +40,7 @@ class K8sCluster(Cluster):
         self._k8s = client.CoreV1Api(self._apiClient)
         self._k8sApps = client.AppsV1Api(self._apiClient)
 
+    def connect(self):
         if not len(self.rawNamespaces(self._namespace)):
             #
             # namespace does not exist yet -> create it

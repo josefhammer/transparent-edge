@@ -80,6 +80,8 @@ class ServiceManager:
         """
         Will be called after the switch connected. Before that, we may not be able to connect to the cluster.
         """
+        edge.cluster.connect()
+
         svcInstances = edge.cluster.services(None)
 
         for svcList in svcInstances.values():

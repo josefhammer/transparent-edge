@@ -45,6 +45,9 @@ class DockerCluster(Cluster):
         #
         # client = docker.DockerClient(base_url='tcp://127.0.0.1:1234')
 
+    def connect(self):
+        pass
+
     def deploy(self, serviceDef: K8sService):
 
         assert (serviceDef and serviceDef.yaml)
