@@ -17,9 +17,9 @@ export EDGE_DOUBLE="EDGE_CONFIG='config/edge-double.json'"
 export EDGE_GATEWAY="EDGE_CONFIG='config/edge-gateway.json'"
 export EDGE_GATEWAYD="EDGE_CONFIG='config/edge-gateway-docker.json'"
 
-export LL_INFO="EDGE_LOGLEVEL='INFO'"
-export LL_WARN="EDGE_LOGLEVEL='WARN'"
-export LL_DEBUG="EDGE_LOGLEVEL='DEBUG'"
+export LL_INFO="logLevel='INFO'"
+export LL_WARN="logLevel='WARN'"
+export LL_DEBUG="logLevel='DEBUG'"
 
 alias ry="$LL_INFO $EDGE_SINGLE $RYU_EDGE"
 alias ryd="$LL_DEBUG $EDGE_SINGLE $RYU_EDGE"
