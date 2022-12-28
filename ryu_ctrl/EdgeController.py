@@ -44,11 +44,11 @@ class EdgeController:
         self._cfg.clusterGlob = "/var/emu/clusters/*-*.json"  # default value
         self._cfg.servicesGlob = "/var/emu/services/*.yml"  # default value
         self._cfg.servicesDir = "/var/emu/svcMngr/"  # default value
+        self._cfg.arpSrcMac = "02:00:00:00:00:ff"
+        self._cfg.flowIdleTimeout = 5
         self._cfg.useUniquePrefix = True
         self._cfg.useUniqueMask = True
         self._cfg.logPerformance = False
-        self._cfg.arpSrcMac = None
-        self._cfg.flowIdleTimeout = 5
         self._cfg.switches = None
         self._cfg.logLevel = None
         self._cfg.scheduler = {
