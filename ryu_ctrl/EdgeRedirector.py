@@ -79,6 +79,10 @@ class EdgeRedirector:
 
         # Set up table entry towards selected server
         #
+        return self._fwdToEdge(log, of, packet, src, dst, edge)
+
+    def _fwdToEdge(self, log, of, packet, src, dst, edge):
+
         match = of.Match().srcIP(src.ip).dstIP(dst.ip).dstPort(dst.port)  # no srcPort
 
         outport = of.switch.portFor(edge.mac)
@@ -141,5 +145,6 @@ class EdgeRedirector:
 
         cookie = Stats.REDIR_EDGE if isinstance(packetOut, bool) else Stats.REDIR_DEFAULT
 
-        of.FlowMod().table(self.table).cookie(cookie).idleTimeout(
-            self.idleTimeout, notify=True).match(match).actions(actions, packetOut).send()
+        of.FlowMod().table(self.table).cookie(cookie).idleTimeout(self.idleTimeout,
+                                                                  notify=True).match(match).actions(actions,
+                                                                                                    packetOut).send()

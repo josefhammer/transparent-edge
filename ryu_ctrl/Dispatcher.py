@@ -40,45 +40,46 @@ class Dispatcher:
         self._setClientLocation(dpid, src)
 
         # Do we already know this flow?
+        #
         entry = self.memory.getFwd(src, dst)
-
-        if entry is None:
-
-            # remember vMac
-            switch.vMac = dst.mac
-
-            # REVIEW: If edge is different, we would need to route it to the other switch first (destMac = switch).
-
-            service, edges = self._serviceMngr.availServers(dst)  # running instances available?
-            if not service:
-                service = self._serviceMngr.service(dst)
-            edge, numDeployed, numRunningInstances = self._scheduler.schedule(dpid, service, edges)
-
-            if numRunningInstances:
-                svc = edge.vServices.get(dst)
-            elif numDeployed:
-                svc = edge.vServices.get(dst)
-                self._serviceMngr.scaleService(edge, svc)  # scale up instance
-            else:
-                if edge is None:
-                    log.warn("No server found for service {} at switch {}.".format(dst, dpid))
-                    return None
-
-                svc = self._serviceMngr.deployService(edge, service)  # try to deploy an instance
-                self._serviceMngr.scaleService(edge, svc)  # and wait for it to be scaled up
-
-                if not svc:
-                    log.warn("Could not instantiate service {} at edge {}.".format(dst, edge.ip))
-                    return None
-
-            edge = SocketAddr(svc.eAddr.ip, svc.eAddr.port, edge.switch.hosts[svc.edgeIP].mac)
-
-            entry = FlowMemoryEntry(src, dst, edge)
-            self.memory.add(entry)
-            log.debug("Memorized: {}".format(entry))
-
-        else:
+        if entry is not None:
             log.debug("Found:     {}".format(entry))
+            assert (entry.edge.mac)
+            return entry.edge
+
+        # entry is None
+        #
+        # remember vMac
+        switch.vMac = dst.mac
+
+        # REVIEW: If edge is different, we would need to route it to the other switch first (destMac = switch).
+
+        service, edges = self._serviceMngr.availServers(dst)  # running instances available?
+        if not service:
+            service = self._serviceMngr.service(dst)
+        edge, numDeployed, numRunningInstances = self._scheduler.schedule(dpid, service, edges)
+
+        if numRunningInstances:
+            svc = edge.vServices.get(dst)
+        else:
+            if edge is None:
+                self.log.warn("No server found for service {} at switch {}.".format(dst, dpid))
+                return None
+
+            svc = self._serviceMngr.deploy(service, edge, numDeployed)
+
+        return self._memorize(log, src, dst, edge, svc)
+
+    def _memorize(self, log, src, dst, edge, svc):
+
+        if not svc:
+            return None
+
+        edgeAddr = SocketAddr(svc.eAddr.ip, svc.eAddr.port, edge.switch.hosts[svc.edgeIP].mac)
+
+        entry = FlowMemoryEntry(src, dst, edgeAddr)
+        self.memory.add(entry)
+        log.debug("Memorized: {}".format(entry))
 
         assert (entry.edge.mac)
         return entry.edge

@@ -18,8 +18,6 @@ class ServiceManager:
     Manages the available services.
     """
 
-    # REVIEW Might have to be synchronized due to parallel access.
-
     def __init__(self, log, switches: Switches, clusterGlob: str, servicesGlob: str, servicesDir: str):
 
         self.log = log
@@ -149,6 +147,20 @@ class ServiceManager:
             edge.eServices[svcInstance.eAddr] = svcInstance
 
         self.log.info("ServiceInstance @ {}: {}".format(edge.dpid, svcInstance))
+
+    def deploy(self, service, edge, numDeployed):
+
+        if numDeployed:
+            svc = edge.vServices.get(service.vAddr)
+            self.scaleService(edge, svc)  # scale up instance
+        else:
+            svc = self.deployService(edge, service)  # try to deploy an instance
+            self.scaleService(edge, svc)  # and wait for it to be scaled up
+
+        if not svc:
+            self.log.warn("Could not instantiate service {} at edge {}.".format(service, edge.ip))
+            return None
+        return svc
 
     def deployService(self, edge: Edge, service: Service):
 
