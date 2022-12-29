@@ -6,6 +6,8 @@ from util.EdgeTools import Switch
 from util.RyuDPID import DPID
 from .ServiceManager import ServiceManager
 
+from concurrent.futures import ThreadPoolExecutor as PoolExecutor
+
 
 class Dispatcher:
     """
@@ -19,6 +21,7 @@ class Dispatcher:
         self.log = log
         self._serviceMngr = serviceMngr
         self._scheduler = scheduler
+        self._executor = PoolExecutor()
 
         # Remember the locations of the clients to detect client movement
         self.locations = {}
@@ -66,7 +69,8 @@ class Dispatcher:
                 self.log.warn("No server found for service {} at switch {}.".format(dst, dpid))
                 return None
 
-            svc = self._serviceMngr.deploy(service, edge, numDeployed)
+            future = self._executor.submit(self._serviceMngr.deploy, service, edge, numDeployed)
+            svc = future.result()
 
         return self._memorize(log, src, dst, edge, svc)
 
