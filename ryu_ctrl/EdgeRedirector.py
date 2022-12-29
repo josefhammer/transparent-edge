@@ -5,6 +5,8 @@ from util.RyuOpenFlow import OpenFlow, Packet
 from util.Stats import Stats
 from logging import DEBUG, INFO
 
+from functools import partial
+
 
 class EdgeRedirector:
     """
@@ -72,17 +74,17 @@ class EdgeRedirector:
         #
         #  It's for our service IP
         #
-        edge = self.dispatcher.dispatch(of.switch, src, dst)
-        if edge is None:
+        fnFlowSetup = partial(self._fwdToEdge, log, of, packet, src, dst)  # fn(edge)
+
+        if not self.dispatcher.dispatch(of.switch, src, dst, fnFlowSetup):
             log.warn("No servers available for %s --> regular forwarding.", dst)
             return False
-
-        # Set up table entry towards selected server
-        #
-        return self._fwdToEdge(log, of, packet, src, dst, edge)
+        return True
 
     def _fwdToEdge(self, log, of, packet, src, dst, edge):
-
+        """
+        Set up table entry towards selected server.
+        """
         match = of.Match().srcIP(src.ip).dstIP(dst.ip).dstPort(dst.port)  # no srcPort
 
         outport = of.switch.portFor(edge.mac)
@@ -103,7 +105,6 @@ class EdgeRedirector:
         if self.isInfoLogLevel:
             log.info("==> {} -> {} ({}) => {} ({}) |t{}|l={}".format(src, dst, dst.mac, edge, edge.mac, of.msg.table_id,
                                                                      of.msg.total_len))
-        return True
 
     def fwdFromEdge(self, log, of: OpenFlow, packet: Packet, src: SocketAddr, dst: SocketAddr, proactive=False):
         #

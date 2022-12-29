@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections.abc import Callable
 
 from util.FlowMemory import FlowMemoryEntry, FlowMemory
 from util.SocketAddr import SocketAddr
@@ -29,11 +30,12 @@ class Dispatcher:
         # We remember where we directed flows so that if they start up again, we can send them to the same server.
         self.memory = FlowMemory(memIdleTimeout)  # (srcip,dstip,srcport,dstport) -> MemoryEntry
 
-    def dispatch(self, switch: Switch, src: SocketAddr, dst: SocketAddr):
+    def dispatch(self, switch: Switch, src: SocketAddr, dst: SocketAddr, fnFlowSetup: Callable[[SocketAddr], None]):
         """
-        Find the ideal edge server for a given (virtual) ServiceID address.
+        Finds the ideal edge server for a given (virtual) ServiceID address 
+        and uses fnFlowSetup to set up the flows to/from it.
 
-        Returns (edge: SocketAddr).
+        Returns False if no flow could be set up.
         """
         log = self.log
         dpid = switch.dpid
@@ -46,47 +48,48 @@ class Dispatcher:
         #
         entry = self.memory.getFwd(src, dst)
         if entry is not None:
+            edge = svc = None
             log.debug("Found:     {}".format(entry))
-            assert (entry.edge.mac)
-            return entry.edge
-
-        # entry is None
-        #
-        # remember vMac
-        switch.vMac = dst.mac
-
-        # REVIEW: If edge is different, we would need to route it to the other switch first (destMac = switch).
-
-        service, edges = self._serviceMngr.availServers(dst)  # running instances available?
-        if not service:
-            service = self._serviceMngr.service(dst)
-        edge, numDeployed, numRunningInstances = self._scheduler.schedule(dpid, service, edges)
-
-        if numRunningInstances:
-            svc = edge.vServices.get(dst)
         else:
-            if edge is None:
-                self.log.warn("No server found for service {} at switch {}.".format(dst, dpid))
-                return None
+            # entry is None
+            #
+            # remember vMac
+            switch.vMac = dst.mac
 
-            future = self._executor.submit(self._serviceMngr.deploy, service, edge, numDeployed)
-            svc = future.result()
+            # REVIEW: If edge is different, we would need to route it to the other switch first (destMac = switch).
 
-        return self._memorize(log, src, dst, edge, svc)
+            service, edges = self._serviceMngr.availServers(dst)  # running instances available?
+            if not service:
+                service = self._serviceMngr.service(dst)
+            edge, numDeployed, numRunningInstances = self._scheduler.schedule(dpid, service, edges)
 
-    def _memorize(self, log, src, dst, edge, svc):
+            if numRunningInstances:
+                svc = edge.vServices.get(dst)
+            else:
+                if edge is None:
+                    self.log.warn("No server found for service {} at switch {}.".format(dst, dpid))
+                    return False
 
-        if not svc:
-            return None
+                future = self._executor.submit(self._serviceMngr.deploy, service, edge, numDeployed)
+                future.add_done_callback(
+                    lambda ft: self._setUpFlow(log, fnFlowSetup, None, src, dst, edge, svc=ft.result()))
+                return True
 
-        edgeAddr = SocketAddr(svc.eAddr.ip, svc.eAddr.port, edge.switch.hosts[svc.edgeIP].mac)
+        self._setUpFlow(log, fnFlowSetup, entry, src, dst, edge, svc)
+        return True
 
-        entry = FlowMemoryEntry(src, dst, edgeAddr)
-        self.memory.add(entry)
-        log.debug("Memorized: {}".format(entry))
+    def _setUpFlow(self, log, fnFlowSetup, entry, src=None, dst=None, edge=None, svc=None):
+
+        if entry is None:
+            assert (svc is not None)
+            edgeAddr = SocketAddr(svc.eAddr.ip, svc.eAddr.port, edge.switch.hosts[svc.edgeIP].mac)
+
+            entry = FlowMemoryEntry(src, dst, edgeAddr)
+            self.memory.add(entry)
+            log.debug("Memorized: {}".format(entry))
 
         assert (entry.edge.mac)
-        return entry.edge
+        fnFlowSetup(entry.edge)
 
     def findServiceID(self, switch: Switch, src: SocketAddr, dst: SocketAddr):
         """
