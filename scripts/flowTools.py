@@ -7,21 +7,24 @@ from ipaddress import ip_address
 from collections import defaultdict
 import itertools as it
 import csv
+import time
 
 
 class FlowTools(object):
 
-    cntTotal = 0
-    cntStatsCalls = 0
-
     def __init__(self):
 
+        self.cntTotal = 0
+        self.cntStatsCalls = 0
         self.srcs = defaultdict(lambda: 0)
         self.dsts = defaultdict(lambda: 0)
         self.srcIPs = defaultdict(lambda: 0)
         self.srcPorts = defaultdict(lambda: 0)
         self.dstIPs = defaultdict(lambda: 0)
         self.dstPorts = defaultdict(lambda: 0)
+
+        self.cntSleep = 0
+        self.startTime = None
 
     def addStats(self, srcIP, srcPort, dstIP, dstPort):
 
@@ -44,9 +47,22 @@ class FlowTools(object):
             #
             dictReader = csv.DictReader(filter(lambda row: row[0] != '#', csvfile))
 
+            self.startTime = time.time_ns()
+
             for row in dictReader:
                 self.cntTotal += 1
                 rowFn(self, row)
+
+    def waitForRelativeTime(self, relTimeInMs):
+
+        # wait until correct time difference
+        #
+        diffTime = relTimeInMs - (time.time_ns() - self.startTime) / 1000000
+
+        while diffTime > 0:
+            self.cntSleep += 1
+            time.sleep(diffTime / 1000)  # sleep seconds
+            diffTime = relTimeInMs - (time.time_ns() - self.startTime) / 1000000
 
     def isPrivateIP(self, ip):
         return ip_address(ip).is_private
