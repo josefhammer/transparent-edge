@@ -212,8 +212,8 @@ class EdgeController:
                           msg.match.get('tcp_dst'), msg.match.get('ip_proto'), msg.cookie, msg.duration_sec,
                           msg.packet_count, msg.byte_count)
 
-        xid = of.AggregateStatsRequest().table(msg.table_id).send()
-        self.log.info("AggregateStatsRequest: table=%d xid=%d", msg.table_id, xid)
+        # xid = of.AggregateStatsRequest().table(msg.table_id).send()
+        # self.log.info("AggregateStatsRequest: table=%d xid=%d", msg.table_id, xid)
 
     def aggregateStats(self, of: OpenFlow):
 
