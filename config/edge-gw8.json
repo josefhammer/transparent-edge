@@ -1,0 +1,22 @@
+{
+    "switches": {
+        "3": {
+            "gateway": "10.0.0.1",
+            "edges": [
+                {
+                    "ip": "10.0.0.1",
+                    "target": "cluster",
+                    "serviceCidr": [
+                        "10.244.2.0/24",
+                        "172.16.0.0/12",
+                        "10.96.0.0/12"
+                    ]
+                }
+            ]
+        }
+    },
+    "flowIdleTimeout": 5,
+    "useUniquePrefix": true,
+    "useUniqueMask": true,
+    "servicesGlob": "/var/emu/services/*.yml"
+}

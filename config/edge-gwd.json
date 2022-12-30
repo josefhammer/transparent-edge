@@ -1,0 +1,19 @@
+{
+    "switches": {
+        "3": {
+            "gateway": "10.0.0.1",
+            "edges": [
+                {
+                    "ip": "10.0.0.1",
+                    "target": "cluster",
+                    "serviceCidr": [
+                        "10.0.0.1/32"
+                    ]
+                }
+            ]
+        }
+    },
+    "flowIdleTimeout": 5,
+    "useUniqueMask": true,
+    "clusterGlob": "/var/emu/clusters/*-docker.json"
+}
