@@ -42,12 +42,12 @@ class Cluster(ABC):
         assert (svc)
         if replicas:
             if not svc.deployment or not svc.deployment.replicas:  # we need to scale up
-                self._scale(svc, replicas)
                 self._log.info("Scaling up from zero: " + str(svc))
+                self._scale(svc, replicas)
         else:
             if svc.deployment and svc.deployment.replicas:  # we need to scale down
-                self._scale(svc, replicas)
                 self._log.info("Scaling down to zero: " + str(svc))
+                self._scale(svc, replicas)
 
     @abstractmethod
     def _scale(self, svc: ServiceInstance, replicas: int = 1):
