@@ -30,6 +30,10 @@ class Cluster(ABC):
         return svcInst
 
     @abstractmethod
+    def connect(self):
+        pass
+
+    @abstractmethod
     def deploy(self, service: K8sService) -> ServiceInstance:
         pass
 
