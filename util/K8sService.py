@@ -49,7 +49,7 @@ class K8sService(object):
             self.yaml = yml
         self._parseYaml(self.yaml)
 
-    def annotate(self, schedulerName: str = None, replicas: int = 0):
+    def annotate(self, schedulerName: str = None, replicas: int = 0) -> K8sService:
 
         assert (self.yaml is not None)
         self.replicas = replicas
@@ -96,6 +96,8 @@ class K8sService(object):
                     'targetPort': self.podPort or self.port,
                     'protocol': 'TCP'
                 }]
+
+        return self
 
     def _addLabel(self, item):
         item.setdefault("metadata", {}).setdefault("labels", {})[K8sService.LABEL_NAME] = self.label

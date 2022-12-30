@@ -150,41 +150,37 @@ class ServiceManager:
 
     def deploy(self, service, edge, numDeployed):
 
+        assert service
+        perf = PerfCounter()
+
         if numDeployed:
             svc = edge.vServices.get(service.vAddr)
-            self.scaleService(edge, svc)  # scale up instance
+            self._scaleService(edge, svc)  # scale up instance
         else:
-            svc = self.deployService(edge, service)  # try to deploy an instance
-            self.scaleService(edge, svc)  # and wait for it to be scaled up
+            svc = self._deployService(edge, service)  # try to deploy an instance
+            self._scaleService(edge, svc)  # and wait for it to be scaled up
 
         if not svc:
             self.log.warn("Could not instantiate service {} at edge {}.".format(service, edge.ip))
             return None
+
+        self.log.info(f"Service {str(svc)} {'scaled up' if numDeployed else 'deployed'} after {perf.ms()} ms.")
         return svc
 
-    def deployService(self, edge: Edge, service: Service):
-
-        assert service
-        perf = PerfCounter()
+    def _deployService(self, edge: Edge, service: Service) -> ServiceInstance:
 
         serviceDef = Cluster.initService(service=service, filename=self._services.serviceFilename(service.vAddr))
 
         # REVIEW For a higher total speed, immediately scale to 1
-        serviceDef.annotate(edge.schedulerName, replicas=1)
+        #
+        return edge.cluster.deploy(serviceDef.annotate(edge.schedulerName, replicas=1))
 
-        svc = edge.cluster.deploy(serviceDef)
+    def _scaleService(self, edge: Edge, svc: ServiceInstance):
 
-        self.log.info("Service {} deployed after {} ms.".format(str(svc), perf.ms()))
-        return svc
-
-    def scaleService(self, edge: Edge, svc: ServiceInstance):
-
-        perf = PerfCounter()
         edge.cluster.scale(svc, replicas=1)
 
         if svc and svc.deployment and svc.deployment.ready_replicas:
             self._addServiceInstance(svc, edge)
-            self.log.info("Service {} scaled up after {} ms.".format(str(svc), perf.ms()))
 
     def availServers(self, addr: SocketAddr) -> tuple[Service, list[Edge, int, int]]:
         """
