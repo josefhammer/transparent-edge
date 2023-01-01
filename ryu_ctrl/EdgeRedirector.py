@@ -127,7 +127,7 @@ class EdgeRedirector:
             serviceID.mac, serviceID.ip.ip, serviceID.port if serviceID.port != src.port else None).outport(outport)
         self.redirect(of, match, actions, packetOut=not proactive)
 
-        if not proactive and self.isInfoLogLevel:
+        if (not proactive) and self.isInfoLogLevel:
             log.info("<== {} <= {} ({}) @@ {} ({}) |t{}|l={}".format(dst, serviceID, serviceID.mac, src, src.mac,
                                                                      of.msg.table_id, of.msg.total_len))
         return True

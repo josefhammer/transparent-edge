@@ -61,13 +61,13 @@ class DockerCluster(Cluster):
 
             # generate volume mounts list
             #
-            volumes = [f'{hostPaths[name]}:{path}' for name, path in cont.volumes.items()]
+            volumes = [hostPaths[name] + ':' + path for name, path in cont.volumes.items()]
 
             # TODO If multiple containers: Launch them in parallel
             containers.append(
                 func(
                     cont.image,
-                    command=cont.command.extend(cont.args) if cont.command else None,
+                    command=cont.command.extend(cont.args) if cont.command else cont.args,
                     # auto_remove=True,  # we want to keep them after scaling down to zero
                     detach=True,
                     environment=None,  # dict or list
@@ -83,7 +83,7 @@ class DockerCluster(Cluster):
                     publish_all_ports=False))
 
             # NOTE: for debugging only
-            # for line in containers[-1].logs(stream=True): #, follow=False):
+            # for line in containers[-1].logs(stream=True):  #, follow=False):
             #     self._log.debug(line.strip())
 
         if serviceDef.replicas:
@@ -92,13 +92,15 @@ class DockerCluster(Cluster):
             for cont in containers:
                 cont.reload()
 
-        self._log.info(f"Service <{ str(serviceDef) }> deployed ({ perf.ms() } ms).")
+        self._log.info(f"Service <{ str(serviceDef) }> deployed ({ round(perf.ms()) } ms).")
 
         svc = self._apiResponseToService(containers[0])  # REVIEW port from first container only
         svc.containers = containers
         return svc
 
     def _scale(self, svc: ServiceInstance, replicas: int):
+        #
+        # NOTE: If svc is running already, this method won't be called (see Cluster.scale()).
 
         for cont in svc.containers:
             if replicas:
@@ -106,6 +108,7 @@ class DockerCluster(Cluster):
                 # update attrs to get the new auto-assigned ports
                 # ports are assigned only on run, not on create!
                 cont.reload()
+
                 if cont.ports:  # REVIEW Duplicate from _apiResonseToService()
                     svc.clusterAddr = SocketAddr(self._ip, self._getLocalPort(cont))  # REVIEW For K8s in K8sService
                     svc.deployment = Deployment(1, 1)
