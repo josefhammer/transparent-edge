@@ -9,6 +9,9 @@ from util.IPAddr import IPAddr
 from util.TinyServiceTrie import TinyServiceTrie
 from util.Performance import PerfCounter
 
+from time import sleep
+
+import socket
 import os
 import glob
 
@@ -23,6 +26,10 @@ class ServiceManager:
         self.log = log
         self._switches = switches
         self._services: TinyServiceTrie = TinyServiceTrie(servicesDir)
+
+        # Remember currently running deployments
+        #
+        self._curDeployments = {}
 
         self.loadClusters(clusterGlob)
         self.loadServices(servicesGlob)
@@ -148,23 +155,47 @@ class ServiceManager:
 
         self.log.info("ServiceInstance @ {}: {}".format(edge.dpid, svcInstance))
 
-    def deploy(self, service, edge, numDeployed):
+    def bookDeployment(self, service, edge):
+        """
+        Records that we are about to deploy this service. 
+
+        Note: To be called in the main thread to avoid race conditions (while deploy() runs in a separate thread).
+
+        Returns 0 if no deployment is running already.
+        """
+        result = self._curDeployments.get((service, edge), 0)
+        self._curDeployments[(service, edge)] = 1  # REVIEW/TODO Clean up dict
+        return result
+
+    def deploy(self, service: Service, edge: Edge, numDeployed, waitOnly: bool):
 
         assert service
         perf = PerfCounter()
+        portWaitTime = 0
 
-        if numDeployed:
+        # Is the same deployment currently running?
+        #
+        if waitOnly:
+            task = 'wait'
             svc = edge.vServices.get(service.vAddr)
-            self._scaleService(edge, svc)  # scale up instance
+            while svc is None or svc.eAddr is None:
+                sleep(1 / 100)  # 10 ms
+                svc = edge.vServices.get(service.vAddr)
+
         else:
-            svc = self._deployService(edge, service)  # try to deploy an instance
-            self._scaleService(edge, svc)  # and wait for it to be scaled up
+            if numDeployed:
+                task = 'scaleUp'
+                svc = edge.vServices.get(service.vAddr)
+            else:
+                task = 'deploy'
+                svc = self._deployService(edge, service)  # try to deploy an instance
+            portWaitTime = self._scaleService(edge, svc)  # (wait for) scaling up instance
 
-        if not svc:
-            self.log.warn("Could not instantiate service {} at edge {}.".format(service, edge.ip))
-            return None
+            if not svc:
+                self.log.error("Could not instantiate service {} at edge {}.".format(service, edge.ip))
+                return None
 
-        self.log.info(f"Service {str(svc)} {'scaled up' if numDeployed else 'deployed'} after {perf.ms()} ms.")
+        self.log.warn(f"#perfDeploy: {round(perf.ms())}-{round(portWaitTime)} ms {task}: {str(svc)}")
         return svc
 
     def _deployService(self, edge: Edge, service: Service) -> ServiceInstance:
@@ -180,7 +211,35 @@ class ServiceManager:
         edge.cluster.scale(svc, replicas=1)
 
         if svc and svc.deployment and svc.deployment.ready_replicas:
-            self._addServiceInstance(svc, edge)
+            portWaitTime = self._waitForOpenPort(svc)
+            self._addServiceInstance(svc, edge)  # add only after port is open!!
+            return portWaitTime
+        return 0
+
+    def _waitForOpenPort(self, svc):
+        """
+        Waits until the service port is open for connections. 
+        
+        Rationale: Even if the (Docker) container is in state "running", the web service might not be ready for
+        connections yet.
+
+        Returns 0 if port was open on first attempt; waiting time in ms otherwise.
+        """
+        perf = PerfCounter()
+
+        for i in range(0, 100):
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.2)
+            try:
+                s.connect((str(svc.clusterAddr.ip), svc.clusterAddr.port))
+                s.shutdown(socket.SHUT_RDWR)
+                break
+            except:
+                sleep(0.01)  # 10 ms
+            finally:
+                s.close()
+
+        return perf.ms() if i else 0  # returns > 0 only if port was closed on first attempt
 
     def availServers(self, addr: SocketAddr) -> tuple[Service, list[Edge, int, int]]:
         """
