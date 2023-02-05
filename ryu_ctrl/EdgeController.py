@@ -78,7 +78,7 @@ class EdgeController:
 
         self.dispatcher = Dispatcher(self.logger("Dispatcher"), self._serviceMngr,
                                      scheduler(self.logger(self._cfg.scheduler["logName"]), self._cfg.scheduler),
-                                     self._cfg.flowIdleTimeout * 2)
+                                     self._cfg.flowIdleTimeout * 10)
 
         for dpid, sw in self._switches.items():
             for edge in sw.edges:
