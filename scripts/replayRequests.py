@@ -1,102 +1,102 @@
 #!/usr/bin/env python3
 
-from scapy.layers.inet import IP, TCP, UDP
-from scapy.sendrecv import send, sr
-from scapy.config import conf
-from collections import defaultdict
+from flowTools import FlowTools
+from functools import partial
 import argparse
-import csv
-import time
+import sys
 
-numReqestsPerReport = 1000
-
-
-def getStats(filename: str):
-    """
-    Calculate statistics from CSV file
-    """
-
-    cnt = 0
-    destIPs = {}
-    srcIPs = defaultdict(lambda: 0)
-
-    with open(filename, newline='') as csvfile:
-        next(csvfile)  # skip header line
-
-        data = csv.reader(csvfile)
-        for timediff_ms, proto, srcIP, srcPort, dstIP, dstPort in data:
-            cnt += 1
-
-            destIPs[(dstIP, dstPort)] = dstIP
-            srcIPs[srcIP] += 1
-
-        print("Num Unique DestIP-Port Combinations:", len(destIPs))
-        print("Num Unique SrcIPs:", len(srcIPs))
-        print("Num Requests:", cnt)
+edgeServices = None  # (ip, port) -> 1
 
 
-def sendRequests(filename: str):
-    """
-    Send all requests according to timestamps in CSV file.
-    """
+def addService(ft: FlowTools, row):
 
-    # to speed up sending: create a single socket and reuse that for sending
-    # https://home.regit.org/2014/04/speeding-up-scapy-packets-sending/
-    #
-    socket = conf.L3socket(iface=conf.iface)
+    global edgeServices
 
-    cnt = cntSleep = 0
-    with open(filename, newline='') as csvfile:
-        next(csvfile)  # skip header line
+    ip, port = row['serviceAddr'].split(':')
+    edgeServices[(ip, port)] = 1
 
-        lastTime = startTime = time.time_ns()
 
-        data = csv.reader(csvfile)
-        for timediff_ms, proto, srcIP, srcPort, dstIP, dstPort in data:
+def reqFilter(mySrcIP: str, ft: FlowTools, row):
 
-            timediff_ms = int(timediff_ms)
-            dstPort = int(dstPort)
-            srcPort = int(srcPort)
+    global edgeServices
+    result = (edgeServices is None) or (row['dstIP'], row['dstPort']) in edgeServices
+    proto = row.get('proto')
+    result = result and (proto is None or proto == '6' or proto == '17')  # TCP, UDP
 
-            # create packet (TCP or UDP)
-            #
-            if proto == "6":
-                packet = TCP(sport=srcPort, dport=dstPort)
-            elif proto == "17":
-                packet = UDP(sport=srcPort, dport=dstPort)
-            else:
-                print("Unexpected protocol:", proto)
+    return result if mySrcIP is None else result and mySrcIP == row['srcIP']
 
-            # wait until correct time difference
-            #
-            diffTime = timediff_ms - (time.time_ns() - startTime) / 1000000
 
-            while diffTime > 0:
-                cntSleep += 1
-                time.sleep(diffTime / 1000)  # sleep seconds
-                diffTime = timediff_ms - (time.time_ns() - startTime) / 1000000
+def getStats(ft: FlowTools, row):
 
-            # send packet with Scapy
-            #
-            socket.send(IP(dst=dstIP, ttl=0) / packet)  # TTL=0 so packet will not leave the network
-            cnt += 1
+    ft.addStats(row['srcIP'], None, row['dstIP'], int(row['dstPort']))
 
-            if cnt >= numReqestsPerReport:
 
-                curTime = time.time_ns()
-                diff_millis = (curTime - lastTime) / 1000000
-                lastTime = curTime
-                print(numReqestsPerReport, "requests in", diff_millis, "ms, slept", cntSleep, "times.")
-                cnt = cntSleep = 0
+def sendRequest(isLive: bool, socket, ft: FlowTools, row):
+
+    dstIP = row['dstIP']
+    srcPort = int(row['srcPort'])
+    dstPort = int(row['dstPort'])
+
+    if isLive:
+        timestamp = row.get('relStartTimestampInSec')
+        timestamp = float(timestamp) * 1000 if timestamp is not None else int(row['timediff_ms'])
+        ft.waitForRelativeTime(timestamp)
+
+    if not socket:
+        print(f"{ft.index} {dstIP}:{dstPort}", file=sys.stderr)  # stderr is unbuffered
+    else:
+        # create packet (TCP or UDP)
+        #
+        if row['proto'] == '6':
+            packet = TCP(sport=srcPort, dport=dstPort)
+        else:
+            packet = UDP(sport=srcPort, dport=dstPort)
+
+        # send packet with Scapy
+        #
+        socket.send(IP(dst=dstIP, ttl=0) / packet)  # TTL=0 so packet will not leave the network
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('csvFile', help='CSV file containing the requests')
+    parser.add_argument('requestsCSV', help='CSV file containing the requests')
+    parser.add_argument('--srcIP', help='Process only requests from this srcIP')
+    parser.add_argument('--live', action='store_true', help='Process requests according to timestamps')
+    parser.add_argument('--scapy', action='store_true', help='Send TCP/UDP packets using Scapy')
+    parser.add_argument('--servicesCSV', help='Process only requests to these destination addresses')
     args = parser.parse_args()
 
-    srcfile = args.csvFile
+    srcfile = args.requestsCSV
+    svcfile = args.servicesCSV
 
-    getStats(srcfile)
-    sendRequests(srcfile)
+    if svcfile:
+        edgeServices = {}
+        ft = FlowTools()
+        ft.processCsv(svcfile, addService)
+
+    fnFilter = partial(reqFilter, args.srcIP)
+
+    ft = FlowTools()
+    ft.processCsv(srcfile, getStats, fnFilter)
+
+    # print stats
+    print("# Num Unique SrcIPs:", len(ft.srcIPs))
+    print("# Num Unique DestIP-Port Combinations:", len(ft.dsts))
+    print(f"# Num Requests: {ft.cntStatsCalls} of {ft.cntTotal} ({ft.percent(ft.cntStatsCalls,ft.cntTotal)} %)")
+
+    ft = FlowTools()
+    socket = None
+    if not args.scapy:
+        ft.processCsv(srcfile, partial(sendRequest, args.live, socket), fnFilter)
+
+    else:
+        from scapy.layers.inet import IP, TCP, UDP
+        from scapy.config import conf as scapyConf
+
+        # to speed up sending: create a single socket and reuse that for sending
+        # https://home.regit.org/2014/04/speeding-up-scapy-packets-sending/
+        #
+        socket = scapyConf.L3socket(iface=scapyConf.iface)
+
+        ft.processCsv(srcfile, partial(sendRequest, args.live, socket), fnFilter)
