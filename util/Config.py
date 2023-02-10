@@ -6,6 +6,7 @@ Configuration container. Loads config values from ENV (primary) and a JSON file 
 
 from json import load as json_load
 from os import getenv as os_getenv
+from distutils.util import strtobool
 
 
 class Config(object):
@@ -30,9 +31,21 @@ class Config(object):
 
             json = json_load(file)
 
-            for key in cfg:
+            for key, value in cfg.items():
                 """
                 Gets the given config value. 
                 Order: ENV variable first, then config file, then defaultValue.
                 """
-                cfg[key] = os_getenv(key, json.get(key, cfg[key]))
+                temp = os_getenv(key)
+                if temp is None:
+                    cfg[key] = json.get(key, cfg[key])
+                else:
+                    # extract wanted type from default value
+                    #
+                    if isinstance(value, bool):
+                        temp = bool(strtobool(temp))  # convert str(0/False/1/True) to bool
+                    elif isinstance(value, int):
+                        temp = int(temp)
+                    elif isinstance(value, float):
+                        temp = float(temp)
+                    cfg[key] = temp
