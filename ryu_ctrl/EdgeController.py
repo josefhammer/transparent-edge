@@ -51,6 +51,7 @@ class EdgeController:
         self._cfg.logPerformance = False
         self._cfg.switches = None
         self._cfg.logLevel = None
+        self._cfg.readyFile = None
         self._cfg.scheduler = {
             "class": "ryu_ctrl.ProximityScheduler.ProximityScheduler",
             "logName": "ProxScheduler"
@@ -181,6 +182,12 @@ class EdgeController:
             self.log.warn("**** Fully connected. ****")
             self.log.info("")
             self.log.info("")
+
+            # signal being ready by creating a file
+            #
+            if self._cfg.readyFile:
+                fp = open(self._cfg.readyFile, 'x')  # 'x': fail if file already exists
+                fp.close()
 
     def packetIn(self, of: OpenFlow):
 
