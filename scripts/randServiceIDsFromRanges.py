@@ -29,6 +29,15 @@ def readRanges(filename):
 def randIPs(ipRanges, count):
 
     result = {}  # dict to avoid duplicates
+
+    # first, make sure each ipRange is used at least once
+    #
+    assert (count >= len(ipRanges))
+    for subnet in ipRanges:
+        result[random_ip(subnet)] = 1
+
+    # fill up with random IPs in random subnets
+    #
     while len(result) < count:
         subnet = random.choice(ipRanges)
         result[random_ip(subnet)] = 1
@@ -52,6 +61,7 @@ if __name__ == "__main__":
     ipRanges = readRanges(subnetFile)
     print("# numSubnets =", len(ipRanges))
     print("# numIPs =", numIPs)
+    print("serviceAddr")  # csv header
 
     ipAddies = randIPs(ipRanges, numIPs)
     for ip in ipAddies:
