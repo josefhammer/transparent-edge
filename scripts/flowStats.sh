@@ -1,20 +1,28 @@
 #!/bin/bash
 
-# cookie value/mask
-DETECT_EDGE="19/19"
-DETECT_DEFAULT="35/35"
-REDIR_EDGE="76/76"
-REDIR_DEFAULT="140/140"
+if [ "$#" -ne 1 ]
+then
+    echo "Usage: $0 <switch>"
+    exit 1
+fi
+switch=$1
 
-FLOWS="$DETECT_EDGE $DETECT_DEFAULT $REDIR_EDGE $REDIR_DEFAULT"
-#for COOKIE in $FLOWS
+
+# cookie value/mask
+#
+# https://stackoverflow.com/questions/1494178/how-to-define-hash-tables-in-bash
+#
+declare -A COOKIES=( ["edgeDetect"]="19/19" ["defaultDetect"]="35/35" ["edgeRedir"]="76/76" ["defaultRedir"]="140/140" )
 
 
 echo "["
 while true
 do
     seconds=`date +%s`
-    stats=`sudo ovs-ofctl dump-aggregate o-bs1 cookie=$DETECT_DEFAULT | cut -d : -f 2 | sed -e 's/\s/,"/g' | sed -e 's/=/":/g'`
-    echo "{\"timestamp\":$seconds$stats},"
+    stats=""
+    for COOKIE in "${!COOKIES[@]}"; do
+        stats=$stats`sudo ovs-ofctl dump-aggregate $switch cookie="${COOKIES[$COOKIE]}" | cut -d : -f 2 | sed -e 's/\s/,"/g' | sed -e 's/=/":/g' | sed -e "s/_count/_count_$COOKIE/g"`
+    done
+    echo "{\"ts_sec\":$seconds$stats},"
     sleep 1
 done
