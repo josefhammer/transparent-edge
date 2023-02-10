@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 
+from flowTools import FlowTools
+
 import shutil
 import os
 import sys
 import argparse
 
+ips = []
 
-def readIPs(filename):
-    ips = []
-    with open(filename) as file:
-        for line in file:
-            if not line.startswith('#') and '.' in line:
-                ips.append(line.strip())
-    return ips
+
+def addService(ft: FlowTools, row):
+
+    global ips
+    ips.append(row['serviceAddr'])
 
 
 # MAIN
@@ -32,7 +33,9 @@ if __name__ == "__main__":
     template = args.template or template
     svcName = args.serviceName or "scalingtest"
 
-    ips = readIPs(ipFile)
+    ft = FlowTools()
+    ft.processCsv(ipFile, addService)
+
     setName = os.path.basename(ipFile).rsplit(".", 1)[0]  # the name of the set of service IPs
     print("#IPs =", len(ips), "Set =", setName, file=sys.stderr)
 
