@@ -5,7 +5,6 @@ Tools for filtering Pcap/CSV files.
 
 from ipaddress import ip_address
 from collections import defaultdict
-import itertools as it
 import csv
 import time
 
@@ -14,6 +13,7 @@ class FlowTools(object):
 
     def __init__(self):
 
+        self.index = 0  # CSV index of all requests (0..n-1; excluding header and comments)
         self.cntTotal = 0
         self.cntStatsCalls = 0
         self.srcs = defaultdict(lambda: 0)
@@ -37,7 +37,7 @@ class FlowTools(object):
         self.dstPorts[dstPort] += 1
         return self
 
-    def processCsv(self, filename, rowFn):
+    def processCsv(self, filename, rowFn, filterFn=(lambda ft, row: True)):
         """
         Calls rowFn(row) for each CSV line (unless line is a header or comment).
         """
@@ -51,7 +51,9 @@ class FlowTools(object):
 
             for row in dictReader:
                 self.cntTotal += 1
-                rowFn(self, row)
+                if filterFn(self, row):
+                    rowFn(self, row)
+                self.index = self.cntTotal
 
     def waitForRelativeTime(self, relTimeInMs):
 
