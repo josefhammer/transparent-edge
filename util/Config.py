@@ -4,7 +4,7 @@
 Configuration container. Loads config values from ENV (primary) and a JSON file (secondary).
 """
 
-from json import load as json_load
+from json import load as json_load, dumps as json_dumps
 from os import getenv as os_getenv
 from distutils.util import strtobool
 
@@ -22,6 +22,9 @@ class Config(object):
 
     def __str__(self):
         return str(vars(self))
+
+    def toJson(self):
+        return json_dumps(vars(self))
 
     def loadConfig(self):
 

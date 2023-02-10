@@ -59,7 +59,7 @@ class EdgeController:
 
         # update from ENV or JSON
         self.loadConfig()
-        self.log.info("Config: " + str(self._cfg))
+        self.log.info("#config: " + self._cfg.toJson())
 
         if self._cfg.logLevel:
             self.log.setLevel(self._cfg.logLevel)
