@@ -73,7 +73,7 @@ class Dispatcher:
                 # to be called here in the main thread to avoid race conditions
                 waitOnly = self._serviceMngr.bookDeployment(service, edge)
 
-                future = self._executor.submit(self._serviceMngr.deploy, service, edge, numDeployed, waitOnly)
+                future = self._executor.submit(self._serviceMngr.deploy, service, edge, src, numDeployed, waitOnly)
                 future.add_done_callback(
                     lambda ft: self._setUpFlow(log, fnFlowSetup, None, src, dst, edge, svc=ft.result()))
                 return True

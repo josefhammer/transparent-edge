@@ -9,7 +9,7 @@ from util.IPAddr import IPAddr
 from util.TinyServiceTrie import TinyServiceTrie
 from util.Performance import PerfCounter
 
-from time import sleep
+from time import sleep, time
 
 import socket
 import os
@@ -167,9 +167,10 @@ class ServiceManager:
         self._curDeployments[(service, edge)] = 1  # REVIEW/TODO Clean up dict
         return result
 
-    def deploy(self, service: Service, edge: Edge, numDeployed, waitOnly: bool):
+    def deploy(self, service: Service, edge: Edge, src: SocketAddr, numDeployed, waitOnly: bool):
 
         assert service
+        startTime_s = time()
         perf = PerfCounter()
         portWaitTime = 0
 
@@ -195,7 +196,9 @@ class ServiceManager:
                 self.log.error("Could not instantiate service {} at edge {}.".format(service, edge.ip))
                 return None
 
-        self.log.warn(f"#perfDeploy: {round(perf.ms())}-{round(portWaitTime)} ms {task}: {str(svc)}")
+        # use double curlies to escape curly braces in f-strings
+        self.log.warn(f'#perfDeploy: {{"t":"{task}", "total":{round(perf.ms())}, "wait":{round(portWaitTime)}, ' +
+                      f'"svc": "{str(svc)}", "src":"{str(src)}", "ts":{startTime_s}}}')
         return svc
 
     def _deployService(self, edge: Edge, service: Service) -> ServiceInstance:
