@@ -16,9 +16,22 @@ import argparse
 
 def findDestIPsInPortRange(destPortStart, destPortEnd, ft: FlowTools, row):
 
+    dstIP = row['dstIP']
     dstPort = int(row['dstPort'])
 
     if dstPort >= destPortStart and dstPort <= destPortEnd:
+
+        # ip will most likely be a public IP, but better safe than sorry
+        if not ft.isPrivateIP(dstIP):  # only public IP address can be a serviceIP
+            ft.addStats(row['srcIP'], None, dstIP, dstPort)
+
+
+def findDestInDict(dests, ft: FlowTools, row):
+
+    dstPort = int(row['dstPort'])
+    search = (row['dstIP'], dstPort)
+
+    if search in dests:
         ft.addStats(row['srcIP'], None, row['dstIP'], dstPort)
 
 
@@ -26,14 +39,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('csvFile', help='CSV file containing the requests')
-    parser.add_argument('dstPortStart', type=int, help='Destination port (lower limit)')
-    parser.add_argument('dstPortEnd',
-                        type=int,
-                        nargs='?',
-                        help='Destination port (upper limit) (default: dstPortStart)')
+    parser.add_argument('dstPorts', nargs='?', help='These destination ports only (e.g., 80 or 80-1024)')
     parser.add_argument('--printAddrs', action='store_true', help='Print unique IP/port cominations')
     parser.add_argument('--printPorts', action='store_true', help='Print unique ports')
     parser.add_argument('--printSrcIPs', action='store_true', help='Print unique srcIPs')
+    parser.add_argument('--plain', action='store_true', help='Print single column only w/o headers')
     parser.add_argument('--minNumRequests',
                         type=int,
                         nargs='?',
@@ -42,9 +52,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     srcfile = args.csvFile
-    dstPortStart = args.dstPortStart
-    dstPortEnd = args.dstPortEnd or dstPortStart
     minNumRequests = args.minNumRequests
+    isPlain = args.plain
+
+    dstPortStart, dstPortEnd = 0, 65535
+    if args.dstPorts:
+        limits = args.dstPorts.split('-')
+        dstPortStart = int(limits[0])
+        dstPortEnd = int(limits[1]) if len(limits) > 1 else dstPortStart
 
     ft = FlowTools()
     rowFn = partial(findDestIPsInPortRange, dstPortStart, dstPortEnd)
@@ -55,20 +70,28 @@ if __name__ == "__main__":
     #
     destsMinReq = {k: v for k, v in ft.dsts.items() if v >= minNumRequests}
 
+    if minNumRequests > 1:  # need to filter again against destsMinReq
+        ft = FlowTools()
+        rowFn = partial(findDestInDict, destsMinReq)
+        ft.processCsv(srcfile, rowFn)
+
     print(f"# --- Requests in '{srcfile}' for ports {dstPortStart}..{dstPortEnd} ---")
     print(f"# Num Requests: {ft.cntStatsCalls} of {ft.cntTotal} ({ft.percent(ft.cntStatsCalls,ft.cntTotal)} %)")
-    print("# Num Unique Destination Ports:", len(ft.dstPorts))
+    print("# Num Unique SrcIPs:", len(ft.srcIPs))
+    print("# Num Unique DestPorts:", len(ft.dstPorts))
     print("# Num Unique DestIP-Port Combinations:", len(ft.dsts))
-    print("# Num Unique DestIP-Port Combinations >=", minNumRequests, "reqests:", len(destsMinReq))
+    print("# Num Unique DestIP-Port Combinations >=", minNumRequests, "requests:", len(destsMinReq))
     print('#')
 
     if args.printAddrs:
-        print("serviceAddr")  # header line
-        for (ip, port) in sorted(destsMinReq):
-
-            # ip will most likely be a public IP, but better safe than sorry
-            if not ft.isPrivateIP(ip):  # only public IP address can be a serviceIP
+        if not isPlain:
+            print("serviceAddr,numRequests")  # header line
+        for (ip, port), cnt in dict(sorted(destsMinReq.items(),
+                                           key=lambda item: item[1])).items():  # sort by value, not key
+            if isPlain:
                 print(f"{ip}:{port}")
+            else:
+                print(f"{ip}:{port},{cnt}")
 
     if args.printPorts:
         print("servicePort")  # header line
@@ -76,6 +99,13 @@ if __name__ == "__main__":
             print(port)
 
     if args.printSrcIPs:
-        print("srcIP")  # header line
-        for ip in sorted(ft.srcIPs):
-            print(ip)
+        if not isPlain:
+            print("srcIP,numRequests")  # header line
+
+        # sort srcIPs by request count
+        #
+        for ip, cnt in dict(sorted(ft.srcIPs.items(), key=lambda item: item[1])).items():  # sort by value, not key
+            if isPlain:
+                print(ip)
+            else:
+                print(f"{ip},{cnt}")
