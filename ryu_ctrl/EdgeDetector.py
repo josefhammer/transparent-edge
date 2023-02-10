@@ -213,7 +213,7 @@ class EdgeDetector:
 
         actions = of.Action().gotoTable(self.userTable)
         of.FlowMod().table(self.table).cookie(Stats.DETECT_EDGE).idleTimeout(
-            self.idleTimeout).match(match).actions(actions).send()
+            self.idleTimeout, notify=True).match(match).actions(actions).send()
 
         # REVIEW No idea how to 'packet-out' the packet to another table (in case it was not buffered by the
         # switch). However, since UserRedirector is listening to this table too, it will do the job for us
@@ -221,8 +221,6 @@ class EdgeDetector:
 
     def redirectDefault(self, of: OpenFlow, match, outport):
 
-        # REVIEW Longer timeout for default flows (better for testing)
-        #
         actions = of.Action().gotoTable(self.defaultTable)
         of.FlowMod().table(self.table).cookie(Stats.DETECT_DEFAULT).idleTimeout(
-            self.idleTimeout * 4).match(match).actions(actions, packetOut=outport).send()
+            self.idleTimeout, notify=True).match(match).actions(actions, packetOut=outport).send()
