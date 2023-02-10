@@ -198,15 +198,13 @@ class EdgeDetector:
         ipMask = str(IPAddr(mask))
         match.dstIP(dst.ip, ipMask)
 
-        # print mask info on stderr for data taking
-        #
-        # print('{' + f'"dstIP":"{dst.ip}","useMask":{1 if self.useUniqueMask else 0},' +
-        #       f'"mask":{mask},"prefix":{uniquePrefix}' + '},',
-        #       file=sys.stderr)
+        if self.isInfoLogLevel and ((self.useUniquePrefix and uniquePrefix < 32) or self.useUniqueMask):
+            if self.useUniqueMask:
+                mpJson = f'"ipMask": "{ipMask}"'
+            else:
+                mpJson = f'"prefix": {uniquePrefix}'
 
-        if self.isDebugLogLevel and ((self.useUniquePrefix and uniquePrefix < 32) or self.useUniqueMask):
-            self.log.debug("Extended match for {}/{} (mask={}, prefixes={})".format(
-                dst.ip, ipMask if self.useUniqueMask else uniquePrefix, mask, prefixes))
+            self.log.info(f'#uqMatch: {{"ip":"{dst.ip}", {mpJson}, "mask": {mask}, "prefixes": {prefixes}}}')
         return match
 
     def redirectEdge(self, of: OpenFlow, match):
