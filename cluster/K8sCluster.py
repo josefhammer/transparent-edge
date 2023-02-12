@@ -81,6 +81,9 @@ class K8sCluster(Cluster):
                 svcInst.deployment = dpm
                 w.stop()
 
+        if not svcInst.deployment.ready_replicas:
+            self._log.error(f"Deployment/scaling failed: {str(svcInst)}")
+
     def _scale(self, svc: ServiceInstance, replicas: int):
         api_response = self._k8sApps.patch_namespaced_deployment_scale(Service.uniqueName(svc.service.label),
                                                                        self._namespace,
