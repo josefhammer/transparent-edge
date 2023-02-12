@@ -182,6 +182,7 @@ class ServiceManager:
             while svc is None or svc.eAddr is None:
                 sleep(1 / 100)  # 10 ms
                 svc = edge.vServices.get(service.vAddr)
+            portWaitTime = self._waitForOpenPort(svc)
 
         else:
             if numDeployed:
@@ -230,7 +231,7 @@ class ServiceManager:
         """
         perf = PerfCounter()
 
-        for i in range(0, 100):
+        for i in range(0, 300):  # ~60 seconds max
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(0.2)
             try:
@@ -242,7 +243,7 @@ class ServiceManager:
             finally:
                 s.close()
 
-        return perf.ms() if i else 0  # returns > 0 only if port was closed on first attempt
+        return perf.ms() if i else 0  # returns > 0 only if port was still closed on first attempt
 
     def availServers(self, addr: SocketAddr) -> tuple[Service, list[Edge, int, int]]:
         """
