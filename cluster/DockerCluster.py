@@ -164,4 +164,5 @@ class DockerCluster(Cluster):
         # container.ports:
         # {'8080/tcp': [{'HostIp': '0.0.0.0', 'HostPort': '49153'}, {'HostIp': '::', 'HostPort': '49153'}]}
         #
-        return int(container.ports[next(iter(container.ports))][0]['HostPort'])  # only first port in first mapping
+        localPorts = {k: v for k, v in container.ports.items() if v}  # v might be None
+        return int(localPorts[next(iter(localPorts))][0]['HostPort'])  # only first port in first mapping
