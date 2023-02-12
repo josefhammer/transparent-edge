@@ -231,7 +231,7 @@ class ServiceManager:
         """
         perf = PerfCounter()
 
-        for i in range(0, 300):  # ~60 seconds max
+        for i in range(0, 3000):
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(0.2)
             try:
