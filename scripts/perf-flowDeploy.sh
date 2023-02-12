@@ -21,6 +21,11 @@ RYU_READY_FILE="/var/emu/ryuReady.txt"
 
 # Additional config vars read from config file
 CONFIG_VARS=('TEMPLATE' 'SERVICE_NAME' 'USE_TIMECURL' 'RYU_CONFIG' 'SWITCH' 'DEST_PORTS' 'idleTimeout' 'uniquePrefix' 'uniqueMask')
+#
+# optional config vars
+#
+CURL_PARAMS=
+CURL_DATA=
 
 
 checkVar() {  
@@ -229,7 +234,7 @@ done
 for node in "${NODES[@]}"; do
     echo "Copying files to $node..."
     ssh $node "mkdir -p $NODE_DIR/$RESULTS_DIR/"  # create folder
-    scp -q "$DIR/$REPLAY_SCRIPT" "$REPLAY_FILE" "$SERVICES_FILE" $SCP_FILES_MOD $(which timecurl.sh) "$node:$NODE_DIR" # -q quiet mode
+    scp -q "$DIR/$REPLAY_SCRIPT" "$REPLAY_FILE" "$SERVICES_FILE" "$CURL_DATA" $SCP_FILES_MOD $(which timecurl.sh) "$node:$NODE_DIR" # -q quiet mode
 done
 
 
@@ -264,6 +269,12 @@ PID_DSTAT=$!
 #
 SSH_PIDS=()
 NODE_IDX=0
+if [ ! -z "$CURL_DATA" ]; then
+    CURL_DATA_BASE=$(basename "$CURL_DATA")
+    CURL_PARAMS="$CURL_PARAMS --data '@$NODE_DIR/$CURL_DATA_BASE'"
+fi
+echo "CURL_PARAMS: $CURL_PARAMS"
+
 echo "Start sending: $(date +'%Y%m%d-%H%M%S')" >> "$LOG"
 
 for job in "${JOBS[@]}"; do
@@ -278,7 +289,7 @@ for job in "${JOBS[@]}"; do
     echo "Running $job at $node..."
 
     if [ "$USE_TIMECURL" -eq 1 ]; then
-        ssh $node "unbuffer sudo python3 $NODE_DIR/$REPLAY_SCRIPT --srcIP $job --live --servicesCSV '$NODE_DIR/$SERVICES_FILE_BASE' '$NODE_DIR/$REPLAY_FILE_BASE' 2>&1 | $NODE_DIR/timecurl.sh --stdin > $NODE_DIR/$RESULTS_DIR/timecurl-$job-$node.json" & # run in background
+        ssh $node "unbuffer sudo python3 $NODE_DIR/$REPLAY_SCRIPT --srcIP $job --live --servicesCSV '$NODE_DIR/$SERVICES_FILE_BASE' '$NODE_DIR/$REPLAY_FILE_BASE' 2>&1 | $NODE_DIR/timecurl.sh --stdin $CURL_PARAMS > $NODE_DIR/$RESULTS_DIR/timecurl-$job-$node.json" & # run in background
     else
         ssh $node "unbuffer sudo python3 $NODE_DIR/$REPLAY_SCRIPT --srcIP $job --live --scapy '$NODE_DIR/$REPLAY_FILE_BASE' > $NODE_DIR/$RESULTS_DIR/replayRequests-$job-$node.log 2>&1" & # run in background
     fi
