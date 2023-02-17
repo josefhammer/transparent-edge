@@ -7,6 +7,7 @@ from util.Service import Deployment, ServiceInstance, Service
 from util.K8sService import K8sService
 from util.SocketAddr import SocketAddr
 from cluster.Cluster import Cluster
+from concurrent.futures import ThreadPoolExecutor as PoolExecutor
 
 from logging import WARNING, getLogger
 
@@ -31,6 +32,8 @@ class DockerCluster(Cluster):
         self._labelName = labelName
         self._labelPort = labelPort
         self._log = log
+        self._executor = PoolExecutor()
+
         if self._log is None:
             self._log = getLogger("Docker." + str(self._ip))
 
@@ -53,44 +56,24 @@ class DockerCluster(Cluster):
         assert (serviceDef and serviceDef.yaml)
 
         containers = []
-        func = self._client.containers.run if serviceDef.replicas else self._client.containers.create
+        futures = []
         hostPaths = serviceDef.volumes()
 
         perf = PerfCounter()
-        for cont in serviceDef.containers():
+        contTodo = serviceDef.containers()
 
-            # generate volume mounts list
-            #
-            volumes = [hostPaths[name] + ':' + path for name, path in cont.volumes.items()]
+        # if more than one container: launch in separate thread
+        for cont in contTodo[1:]:
+            futures.append(self._executor.submit(self._deployFunc, serviceDef, cont, hostPaths))
 
-            # TODO If multiple containers: Launch them in parallel
-            containers.append(
-                func(
-                    cont.image,
-                    command=cont.command.extend(cont.args) if cont.command else cont.args,
-                    # auto_remove=True,  # we want to keep them after scaling down to zero
-                    detach=True,
-                    environment=None,  # dict or list
-                    labels={
-                        self._labelName: serviceDef.label,
-                        self._labelPort: str(serviceDef.port),
-                    },
-                    ports={
-                        port: None  # if specific IP only: (self._ip, None)
-                        for port in cont.ports
-                    },  # None -> random host port; TCP by default
-                    volumes=volumes,
-                    publish_all_ports=False))
+        # launch first container in current thread (there must be at least one container!)
+        containers.append(self._deployFunc(serviceDef, contTodo[0], hostPaths))
+        if len(contTodo) > 1:
+            self._log.info(f"Service <{ str(serviceDef) }>: First container deployed ({ round(perf.ms()) } ms).")
 
-            # NOTE: for debugging only
-            # for line in containers[-1].logs(stream=True):  #, follow=False):
-            #     self._log.debug(line.strip())
-
-        if serviceDef.replicas:
-            # update attrs to get the new auto-assigned ports
-            # ports are assigned only on run, not on create!
-            for cont in containers:
-                cont.reload()
+        # wait for and add containers from other threads
+        for future in futures:
+            containers.append(future.result())
 
         self._log.info(f"Service <{ str(serviceDef) }> deployed ({ round(perf.ms()) } ms).")
 
@@ -102,22 +85,95 @@ class DockerCluster(Cluster):
         #
         # NOTE: If svc is running already, this method won't be called (see Cluster.scale()).
 
-        for cont in svc.containers:
-            if replicas:
-                cont.start()
-                # update attrs to get the new auto-assigned ports
-                # ports are assigned only on run, not on create!
-                cont.reload()
+        futures = []
 
-                if cont.ports:  # REVIEW Duplicate from _apiResonseToService()
-                    svc.clusterAddr = SocketAddr(self._ip, self._getLocalPort(cont))  # REVIEW For K8s in K8sService
-                    svc.deployment = Deployment(1, 1)
-            else:
-                cont.stop()
+        # if more than one container: launch in separate thread
+        for cont in svc.containers[1:]:
+            futures.append(self._executor.submit(self._scaleFunc, svc, replicas, cont))
+
+        # launch first container in current thread (there must be at least one container!)
+        svc.deployment = self._scaleFunc(svc, replicas, svc.containers[0])
+        if len(svc.containers) > 1:
+            self._log.info(f"Service <{ str(svc) }>: First container scaled up ({svc.containers[0].image}).")
+
+        # wait for and add containers from other threads
+        for future in futures:
+            svc.deployment = svc.deployment or future.result()  # in case port is in another container
+
+        if replicas and (not svc.deployment or not svc.deployment.ready_replicas):
+            self._log.error("Failed to scale: " + str(svc))
+
+    def _deployFunc(self, serviceDef, cont, hostPaths):
+
+        # generate volume mounts list
+        #
+        volumes = [hostPaths[name] + ':' + path for name, path in cont.volumes.items()]
+
+        func = self._client.containers.run if serviceDef.replicas else self._client.containers.create
+        cont = func(
+            cont.image,
+            command=cont.command.extend(cont.args) if cont.command else cont.args,
+            # auto_remove=True,  # we want to keep them after scaling down to zero
+            detach=True,
+            environment=None,  # dict or list
+            labels={
+                self._labelName: serviceDef.label,
+                self._labelPort: str(serviceDef.port),
+            },
+            ports={
+                port: None  # if specific IP only: (self._ip, None)
+                for port in cont.ports
+            },  # None -> random host port; TCP by default
+            volumes=volumes,
+            publish_all_ports=False)
+
+        # NOTE: for debugging only
+        # for line in containers[-1].logs(stream=True):  #, follow=False):
+        #     self._log.debug(line.strip())
+
+        if serviceDef.replicas:
+            # update attrs to get the new auto-assigned ports
+            # ports are assigned only on run, not on create!
+            cont.reload()
+        return cont
+
+    def _scaleFunc(self, svc, replicas, cont):
+        if replicas:
+            cont.start()
+            # update attrs to get the new auto-assigned ports
+            # ports are assigned only on run, not on create!
+            cont.reload()
+
+            if cont.ports:  # REVIEW Duplicate from _apiResonseToService()
+                svc.clusterAddr = SocketAddr(self._ip, self._getLocalPort(cont))  # REVIEW For K8s in K8sService
+                return Deployment(1, 1)
+            return None
+        else:
+            cont.stop()
+            return None
 
     def services(self, label: str):
 
-        return self._toMap(label, self.rawServices, lambda i: self._apiResponseToService(i))
+        svcs = self._toMap(label, self.rawServices, lambda i: self._apiResponseToService(i))
+
+        if isinstance(svcs, list):
+            svcs = self._combine(svcs)
+        else:
+            for k, v in svcs.items():
+                svcs[k] = self._combine(v)
+        return svcs
+
+    def _combine(self, svcs):
+        sMap = {}
+
+        # merge services with multiple containers
+        for svc in svcs:
+            if not svc.service.vAddr in sMap:
+                sMap[svc.service.vAddr] = svc
+            else:
+                sMap[svc.service.vAddr].containers.extend(svc.containers)
+
+        return [v for _, v in sMap.items()]
 
     def _apiResponseToService(self, i) -> ServiceInstance:
 
