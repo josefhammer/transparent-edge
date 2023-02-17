@@ -234,7 +234,7 @@ done
 for node in "${NODES[@]}"; do
     echo "Copying files to $node..."
     ssh $node "mkdir -p $NODE_DIR/$RESULTS_DIR/"  # create folder
-    scp -q "$DIR/$REPLAY_SCRIPT" "$REPLAY_FILE" "$SERVICES_FILE" "$CURL_DATA" $SCP_FILES_MOD $(which timecurl.sh) "$node:$NODE_DIR" # -q quiet mode
+    scp -q "$DIR/$REPLAY_SCRIPT" "$REPLAY_FILE" "$SERVICES_FILE" $CURL_DATA $SCP_FILES_MOD $(which timecurl.sh) "$node:$NODE_DIR" # -q quiet mode
 done
 
 
