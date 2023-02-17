@@ -9,7 +9,8 @@ alias killEdgeDocker='echo $(lsEdgeDocker -q | wc -l); docker kill $(lsEdgeDocke
 alias rmEdgeDocker='echo $(lsEdgeDocker -a -q | wc -l); docker container rm $(lsEdgeDocker -a -q)'
 alias lsEdgeK8s='kubectl -n edge get svc'
 alias killEdgeK8s='echo $(lsEdgeK8s --no-headers 2>/dev/null | wc -l); kubectl -n edge scale --replicas=0 deployments -l edge.service'
-alias rmEdgeK8s='echo $(lsEdgeK8s --no-headers 2>/dev/null | wc -l); kubectl -n edge delete svc,pod,deployment --all'
+# without removing the replicasets, pods keep getting created
+alias rmEdgeK8s='echo $(lsEdgeK8s --no-headers 2>/dev/null | wc -l); kubectl -n edge delete svc,deployments,replicasets,pod --all'
 
 export RYU_EDGE="ryu-manager ./EdgeMainRyu.py --log-config-file=./config/ryu-log.cfg"
 export EDGE_SINGLE="EDGE_CONFIG='config/edge-single.json'"
