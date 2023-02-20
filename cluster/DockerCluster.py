@@ -13,6 +13,9 @@ from logging import WARNING, getLogger
 
 from util.Performance import PerfCounter
 
+import tempfile
+import os
+
 
 class DockerCluster(Cluster):
     """
@@ -62,6 +65,19 @@ class DockerCluster(Cluster):
         perf = PerfCounter()
         contTodo = serviceDef.containers()
 
+        # do we need to create temp volumes ('emptyDir' in Kubernetes)?
+        #
+        for name, path in hostPaths.items():
+            if not path:
+                try:
+                    tempDir = tempfile.mkdtemp(prefix='edgeD-')  # create temp folder # REVIEW Should be cleaned up
+                    os.chmod(tempDir, 0o777)  # REVIEW not readable in container otherwise
+                    hostPaths[name] = tempDir
+                    self._log.info(f'Created temp mount folder: {tempDir}')
+                except Exception as e:
+                    self._log.error(f'Error creating temp folder: {e}')
+                    return None
+
         # if more than one container: launch in separate thread
         for cont in contTodo[1:]:
             futures.append(self._executor.submit(self._deployFunc, serviceDef, cont, hostPaths))
@@ -109,10 +125,14 @@ class DockerCluster(Cluster):
         #
         volumes = [hostPaths[name] + ':' + path for name, path in cont.volumes.items()]
 
+        # create command and args list
+        contCommand = list(cont.command) if cont.command else []  # _copy_ list
+        contCommand.extend(cont.args)
+
         func = self._client.containers.run if serviceDef.replicas else self._client.containers.create
         cont = func(
             cont.image,
-            command=cont.command.extend(cont.args) if cont.command else cont.args,
+            command=contCommand,
             # auto_remove=True,  # we want to keep them after scaling down to zero
             detach=True,
             environment=None,  # dict or list
