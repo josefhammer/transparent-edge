@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from cluster import initCluster
 from cluster.Cluster import Cluster
 from util.EdgeTools import Edge, Switches
 from util.SocketAddr import SocketAddr
@@ -73,7 +72,7 @@ class ServiceManager:
                 for edge in sw.edges:
                     if edge.ip == IPAddr(edgeIP):
 
-                        edge.cluster = initCluster(clusterType, apiServer, filename)
+                        edge.cluster = Cluster.init(clusterType, apiServer, filename)
                         break
 
     def loadServices(self, servicesGlob):
