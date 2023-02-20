@@ -173,6 +173,7 @@ class ServiceManager:
         startTime_s = time()
         perf = PerfCounter()
         portWaitTime = 0
+        svc = None
 
         # Is the same deployment currently running?
         #
@@ -185,16 +186,21 @@ class ServiceManager:
             portWaitTime = self._waitForOpenPort(svc)
 
         else:
-            if numDeployed:
-                task = 'scaleUp'
-                svc = edge.vServices.get(service.vAddr)
-            else:
-                task = 'deploy'
-                svc = self._deployService(edge, service)  # try to deploy an instance
-            portWaitTime = self._scaleService(edge, svc)  # (wait for) scaling up instance
+            for _ in range(3):  # try at most 3 times
+                try:
+                    if numDeployed:
+                        task = 'scaleUp'
+                        svc = edge.vServices.get(service.vAddr)
+                    else:
+                        task = 'deploy'
+                        svc = self._deployService(edge, service)  # try to deploy an instance
+                    portWaitTime = self._scaleService(edge, svc)  # (wait for) scaling up instance
+                    break
+                except Exception as e:
+                    self.log.error(f'{task}: Exception when instantiating service {service} at edge {edge.ip}: {e}')
 
             if not svc:
-                self.log.error("Could not instantiate service {} at edge {}.".format(service, edge.ip))
+                self.log.error(f'{task}: Could not instantiate service {service} at edge {edge.ip}.')
                 return None
 
         # use double curlies to escape curly braces in f-strings
