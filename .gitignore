@@ -1,4 +1,5 @@
 *.pyc
 __*
+eval/data
 
 !__init__.py
