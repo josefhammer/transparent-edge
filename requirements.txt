@@ -2,5 +2,5 @@ urllib3
 docker #==6.0.1
 kubernetes #==25.3.0
 ryu #==4.34
-scapy==2.5.0rc2 # for /scripts/replayRequests.py only
+scapy==2.5.0rc2 # for /eval/replayRequests.py only
 tinytricia @ git+https://github.com/josefhammer/tinytricia.git

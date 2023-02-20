@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # *** Run e.g. with ***
-# nohup ../transparent-edge-synced/scripts/perf-runFlowDeploy.sh perf-cfg/d.asm-hello.p tcpreplay-bigFlows.pcap.flows.csv perf-cfg/nodes20.txt 1  > ../nohup-out.txt 2>&1 &
+# nohup ../transparent-edge-synced/eval/perf-runFlowDeploy.sh perf-cfg/d.asm-hello.p tcpreplay-bigFlows.pcap.flows.csv perf-cfg/nodes20.txt 1  > ../nohup-out.txt 2>&1 &
 # tail -f ../nohup-out.txt
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
