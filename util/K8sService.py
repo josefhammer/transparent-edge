@@ -211,12 +211,18 @@ class K8sService(object):
 
         for volume in volumes:
             name = volume.get('name')
-            if name:
-                path = volume.get('hostPath')
-                path = self._get(volume, 'hostPath', 'path', '')
+            if not name:
+                continue
+            path = volume.get('hostPath')
+            if isinstance(path, dict):
+                path = path.get('path')
+            else:
+                path = volume.get('emptyDir')
+                if not path is None:
+                    path = ''  # emptyDir
 
-                if path:
-                    result[name] = path
+            if path is not None:
+                result[name] = path
 
         return result
 
