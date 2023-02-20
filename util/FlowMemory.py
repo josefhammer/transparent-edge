@@ -15,15 +15,13 @@ class FlowMemoryEntry(object):
         self.src = src
         self.dst = dst
         self.edge = edge
+
+        self.timeout = None
         # we do not call refresh() here for performance reasons
 
     def refresh(self):
         self.timeout = time.time() + FlowMemoryEntry.idleTimeout
         return self
-
-    @property
-    def is_expired(self):
-        return time.time() > self.timeout
 
     @property
     def fwdkey(self):
@@ -57,7 +55,7 @@ class FlowMemory(object):
     def getRet(self, edge, src):  # edge to client
 
         entry = self._ret.get(FlowMemoryEntry(src, None, edge).retkey)
-        return entry if entry is None else entry.refresh()
+        return None if entry is None else entry.refresh()
 
     def add(self, entry: FlowMemoryEntry):
 
@@ -67,5 +65,10 @@ class FlowMemory(object):
 
     def _expireOldFlows(self):
 
-        self._fwd = {k: v for k, v in self._fwd.items() if not v.is_expired}
-        self._ret = {k: v for k, v in self._ret.items() if not v.is_expired}
+        curTime = time.time()  # performance: call only once for all flows
+
+        # REVIEW Forward to other components?
+        expired = [v for v in self._fwd.values() if curTime > v.timeout]
+
+        self._fwd = {k: v for k, v in self._fwd.items() if curTime <= v.timeout}
+        self._ret = {k: v for k, v in self._ret.items() if curTime <= v.timeout}
