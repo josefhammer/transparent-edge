@@ -127,7 +127,7 @@ class DockerCluster(Cluster):
 
         # create command and args list
         contCommand = list(cont.command) if cont.command else []  # _copy_ list
-        contCommand.extend(cont.args)
+        contCommand.extend(cont.args or [])
 
         func = self._client.containers.run if serviceDef.replicas else self._client.containers.create
         cont = func(
