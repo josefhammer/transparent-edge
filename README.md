@@ -41,6 +41,12 @@ year = {2022}
 * [Kubernetes Python Client](https://github.com/kubernetes-client/python)
 
 
+## Evaluation
+
+The data files used to evaluate this project are expected in `eval/data/`. 
+Due to their size, they are stored in a separate repository – [transparent-edge-eval-data](https://github.com/josefhammer/transparent-edge-eval-data).
+
+
 ## More information
 
 See <https://edge.itec.aau.at/> and <https://c3.itec.aau.at/>.
