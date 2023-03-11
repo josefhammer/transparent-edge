@@ -46,6 +46,10 @@ year = {2022}
 The data files used to evaluate this project are expected in `eval/data/`. 
 Due to their size, they are stored in a separate repository – [transparent-edge-eval-data](https://github.com/josefhammer/transparent-edge-eval-data).
 
+The raw evaluation results are in separate repositories, too:
+
+* Unique Prefix vs. Unique Mask - [transparent-edge-eval-uniquemask](https://github.com/josefhammer/transparent-edge-eval-uniquemask).
+
 
 ## More information
 
